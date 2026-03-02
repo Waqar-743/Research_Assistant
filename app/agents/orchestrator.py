@@ -214,9 +214,31 @@ class AgentOrchestrator:
             # ── Phase 1 state management ──────────────────────────────
             # Persist sources + raw findings to MongoDB; do NOT put them
             # into final_context so downstream agents query the DB.
-            await self._persist_researcher_output(session_id, researcher_result)
+            persist_stats = await self._persist_researcher_output(session_id, researcher_result)
             # Verify sources actually landed in MongoDB
             source_count = await SourceRepository.count_by_research(session_id)
+            finding_count = await FindingRepository.count_by_research(session_id)
+            extracted_count = len(researcher_result.get("raw_findings", []))
+            logger.info(
+                f"Researcher persistence check: extracted={extracted_count}, "
+                f"persisted_findings={finding_count}, persisted_sources={source_count}, "
+                f"persist_stats={persist_stats}"
+            )
+
+            if extracted_count > 0 and finding_count == 0:
+                logger.warning(
+                    "Findings were extracted but none persisted to DB; retrying finding persistence once"
+                )
+                sentry_sdk.capture_message(
+                    f"Findings persistence mismatch for session {session_id}: extracted={extracted_count}, persisted=0",
+                    level="warning",
+                )
+                persist_stats = await self._persist_researcher_output(session_id, researcher_result)
+                finding_count = await FindingRepository.count_by_research(session_id)
+                logger.info(
+                    f"Post-retry findings persistence: persisted_findings={finding_count}, "
+                    f"persist_stats={persist_stats}"
+                )
             if source_count == 0:
                 logger.warning("0 sources persisted after researcher run — retrying with broadened query")
                 sentry_sdk.capture_message(
@@ -466,11 +488,13 @@ class AgentOrchestrator:
     # =================================================================
     async def _persist_researcher_output(
         self, session_id: str, result: Dict[str, Any]
-    ):
+    ) -> Dict[str, int]:
         """Save sources and raw findings to MongoDB after researcher completes."""
         try:
             sources = result.get("sources", [])
             raw_findings = result.get("raw_findings", [])
+            existing_source_count = await SourceRepository.count_by_research(session_id)
+            existing_finding_count = await FindingRepository.count_by_research(session_id)
 
             # Bulk-insert source documents
             source_dicts = []
@@ -508,6 +532,9 @@ class AgentOrchestrator:
             if finding_dicts:
                 await FindingRepository.create_many(finding_dicts)
 
+            persisted_source_count = await SourceRepository.count_by_research(session_id)
+            persisted_finding_count = await FindingRepository.count_by_research(session_id)
+
             # Update session metrics
             await ResearchRepository.update_metrics(
                 session_id,
@@ -516,11 +543,29 @@ class AgentOrchestrator:
             )
             logger.info(
                 f"Persisted researcher output: {len(source_dicts)} sources, "
-                f"{len(finding_dicts)} findings"
+                f"{len(finding_dicts)} findings "
+                f"(db delta: +{persisted_source_count - existing_source_count} sources, "
+                f"+{persisted_finding_count - existing_finding_count} findings)"
             )
+            return {
+                "attempted_sources": len(source_dicts),
+                "attempted_findings": len(finding_dicts),
+                "db_sources_before": existing_source_count,
+                "db_findings_before": existing_finding_count,
+                "db_sources_after": persisted_source_count,
+                "db_findings_after": persisted_finding_count,
+            }
         except Exception as e:
             logger.error(f"Failed to persist researcher output: {e}")
             sentry_sdk.capture_exception(e)
+            return {
+                "attempted_sources": 0,
+                "attempted_findings": 0,
+                "db_sources_before": 0,
+                "db_findings_before": 0,
+                "db_sources_after": 0,
+                "db_findings_after": 0,
+            }
 
     async def _persist_analyst_output(
         self, session_id: str, result: Dict[str, Any]

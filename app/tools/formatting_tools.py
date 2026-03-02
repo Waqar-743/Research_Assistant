@@ -473,6 +473,23 @@ REPORT CONTENT:
 Write the executive summary:"""
         
         try:
+            # Guard: if the report content is essentially empty, produce a
+            # graceful summary rather than sending blank text to the LLM.
+            stripped_content = content.strip() if content else ""
+            if len(stripped_content) < 80:
+                logger.warning(
+                    "[SUMMARY] Report content is too short for executive summary — "
+                    "returning graceful fallback"
+                )
+                return (
+                    "This research collected and analyzed multiple sources on the "
+                    "requested topic. While relevant sources were identified, the "
+                    "automated extraction pipeline was unable to distill specific "
+                    "findings with high confidence. The report sections below present "
+                    "the available evidence. Further manual review of the cited sources "
+                    "is recommended to extract additional insights."
+                )
+
             summary = await self.llm.generate(
                 prompt=prompt,
                 model=settings.report_generator_model,
@@ -488,7 +505,11 @@ Write the executive summary:"""
             
         except Exception as e:
             logger.error(f"Summary generation failed: {e}")
-            return "Executive summary generation failed."
+            return (
+                "This research identified relevant sources on the topic but the "
+                "executive summary could not be automatically generated. Please "
+                "review the report sections below for the available evidence and analysis."
+            )
     
     async def structure_findings(
         self,

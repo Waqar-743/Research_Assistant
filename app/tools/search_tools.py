@@ -30,7 +30,7 @@ class SearchTools:
     def __init__(self):
         self.timeout = httpx.Timeout(30.0, connect=10.0)
         self.headers = {
-            "User-Agent": "Multi-Agent-Research-Assistant/1.0"
+            "User-Agent": "ResearchAssistant/1.0 (https://github.com/multi-agent-research; research-bot)"
         }
         self._cache = get_redis()
     
@@ -60,7 +60,8 @@ class SearchTools:
             nonlocal completed_count
             try:
                 result = await coro
-            except Exception:
+            except Exception as exc:
+                logger.error(f"[SEARCH_ALL] {api_name} raised {type(exc).__name__}: {exc}")
                 result = []
             completed_count += 1
             if on_api_complete:
@@ -80,20 +81,23 @@ class SearchTools:
 
         # ── Raw payload logging + Sentry warnings ────────────────
         api_configured = {
-            "google": bool(settings.serpapi_key or (settings.google_api_key and settings.google_search_engine_id)),
+            "google": True,  # always has DDG fallback now
             "newsapi": bool(settings.newsapi_key),
             "arxiv": True,   # no key needed
             "pubmed": True,  # no key needed
             "wikipedia": True,
         }
+        total_all = 0
         for api_name in api_names:
             count = len(output[api_name])
+            total_all += count
             logger.info(f"[RAW_PAYLOAD] {api_name}: {count} results for '{query[:60]}'")
             if count == 0 and api_configured.get(api_name):
                 sentry_sdk.capture_message(
                     f"API {api_name} returned 0 results for: {query[:120]}",
                     level="warning",
                 )
+        logger.info(f"[SEARCH_TOTAL] {total_all} results across all APIs for '{query[:60]}'")
         # ─────────────────────────────────────────────────────────
 
         return output
@@ -104,7 +108,7 @@ class SearchTools:
         num_results: int = 10
     ) -> List[Dict[str, Any]]:
         """
-        Search the web using SerpAPI (preferred) or Google Custom Search API.
+        Search the web using SerpAPI (preferred), Google Custom Search, or DuckDuckGo (free fallback).
         
         Args:
             query: Search query
@@ -115,14 +119,21 @@ class SearchTools:
         """
         # Try SerpAPI first (preferred)
         if settings.serpapi_key:
-            return await self.serpapi_search(query, num_results)
+            results = await self.serpapi_search(query, num_results)
+            if results:
+                return results
+            logger.warning("SerpAPI returned 0 results, falling through to next provider")
         
         # Fallback to Google Custom Search
         if settings.google_api_key and settings.google_search_engine_id:
-            return await self.google_search(query, num_results)
+            results = await self.google_search(query, num_results)
+            if results:
+                return results
+            logger.warning("Google Custom Search returned 0 results, falling through")
         
-        logger.warning("No web search API configured (SerpAPI or Google)")
-        return []
+        # Final fallback: DuckDuckGo (free, no key required)
+        logger.info("Using DuckDuckGo fallback for web search")
+        return await self.duckduckgo_search(query, num_results)
     
     async def serpapi_search(
         self,
@@ -147,7 +158,7 @@ class SearchTools:
         results = []
         
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
+            async with httpx.AsyncClient(timeout=self.timeout, follow_redirects=True) as client:
                 params = {
                     "api_key": settings.serpapi_key,
                     "engine": "google",
@@ -207,6 +218,51 @@ class SearchTools:
         # ─────────────────────────────────────────────────────────
         return results[:num_results]
     
+    async def duckduckgo_search(
+        self,
+        query: str,
+        num_results: int = 10
+    ) -> List[Dict[str, Any]]:
+        """
+        Search using DuckDuckGo via the duckduckgo-search library.
+        Free, no API key required. Handles anti-bot measures internally.
+        """
+        cache_query = f"ddg:{query}:{num_results}"
+        cached = await self._cache.get_search_cache("duckduckgo", cache_query)
+        if cached is not None:
+            return cached
+
+        results = []
+        try:
+            from ddgs import DDGS
+
+            # Run synchronous DDGS in a thread to avoid blocking the event loop
+            def _do_search():
+                with DDGS() as ddgs:
+                    return list(ddgs.text(query, max_results=num_results))
+
+            raw_results = await asyncio.get_event_loop().run_in_executor(None, _do_search)
+
+            for item in raw_results:
+                results.append({
+                    "title": item.get("title", ""),
+                    "url": item.get("href", ""),
+                    "snippet": item.get("body", ""),
+                    "source_type": "web",
+                    "api_source": "duckduckgo",
+                    "retrieved_at": datetime.utcnow().isoformat(),
+                })
+
+            logger.info(f"DuckDuckGo search returned {len(results)} results")
+        except ImportError:
+            logger.error("duckduckgo-search library not installed. Run: pip install duckduckgo-search")
+        except Exception as e:
+            logger.error(f"DuckDuckGo search failed: {e}")
+
+        if results:
+            await self._cache.set_search_cache("duckduckgo", cache_query, results[:num_results], self.CACHE_TTL)
+        return results[:num_results]
+
     async def google_search(
         self,
         query: str,
@@ -230,7 +286,7 @@ class SearchTools:
         results = []
         
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
+            async with httpx.AsyncClient(timeout=self.timeout, follow_redirects=True) as client:
                 # Google allows max 10 results per request
                 for start in range(1, min(num_results + 1, 101), 10):
                     params = {
@@ -305,7 +361,8 @@ class SearchTools:
             # Limit to last 30 days to avoid stale/irrelevant results
             from_date = (datetime.utcnow() - timedelta(days=30)).strftime('%Y-%m-%d')
             
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
+            async with httpx.AsyncClient(timeout=self.timeout, follow_redirects=True, headers=self.headers) as client:
+                # Try /v2/everything first
                 params = {
                     "q": query,
                     "language": language,
@@ -322,7 +379,17 @@ class SearchTools:
                 
                 if response.status_code == 200:
                     data = response.json()
+                    api_status = data.get("status", "")
+                    total_hits = data.get("totalResults", 0)
                     articles = data.get("articles", [])
+                    
+                    logger.info(f"NewsAPI response: status={api_status}, totalResults={total_hits}, articles_returned={len(articles)}")
+                    
+                    if total_hits > 0 and len(articles) == 0:
+                        logger.warning(
+                            "NewsAPI reports results exist but returned 0 articles — "
+                            "possible free-plan restriction or rate limit"
+                        )
                     
                     for article in articles:
                         results.append({
@@ -337,8 +404,41 @@ class SearchTools:
                             "api_source": "newsapi",
                             "retrieved_at": datetime.utcnow().isoformat()
                         })
+                elif response.status_code == 426:
+                    logger.warning("NewsAPI /everything returned 426 — trying /top-headlines fallback")
+                    # Fallback: top-headlines endpoint works on free plan
+                    fallback_params = {
+                        "q": query,
+                        "language": language,
+                        "pageSize": min(num_results, 100),
+                        "apiKey": settings.newsapi_key,
+                    }
+                    fb_resp = await client.get(
+                        "https://newsapi.org/v2/top-headlines",
+                        params=fallback_params,
+                    )
+                    if fb_resp.status_code == 200:
+                        fb_data = fb_resp.json()
+                        for article in fb_data.get("articles", []):
+                            results.append({
+                                "title": article.get("title", ""),
+                                "url": article.get("url", ""),
+                                "snippet": article.get("description", ""),
+                                "content": article.get("content", ""),
+                                "author": article.get("author"),
+                                "source_name": article.get("source", {}).get("name"),
+                                "published_at": article.get("publishedAt"),
+                                "source_type": "news",
+                                "api_source": "newsapi",
+                                "retrieved_at": datetime.utcnow().isoformat(),
+                            })
+                        logger.info(f"NewsAPI /top-headlines fallback returned {len(results)} results")
+                    else:
+                        logger.error(f"NewsAPI /top-headlines also failed: {fb_resp.status_code}")
+                elif response.status_code == 429:
+                    logger.error("NewsAPI rate limit exceeded (429)")
                 else:
-                    logger.error(f"NewsAPI error: {response.status_code} - {response.text}")
+                    logger.error(f"NewsAPI error: {response.status_code} - {response.text[:300]}")
                     
             logger.info(f"NewsAPI returned {len(results)} results")
             
@@ -370,43 +470,67 @@ class SearchTools:
         results = []
         
         try:
+            # Build keyword-style query for ArXiv (strip natural language fluff)
             search_query = quote_plus(query)
-            url = f"{settings.arxiv_api_base}?search_query=all:{search_query}&start=0&max_results={max_results}"
+            # Always use https — ArXiv 301-redirects http to https
+            arxiv_base = settings.arxiv_api_base.replace("http://", "https://")
+            url = f"{arxiv_base}?search_query=all:{search_query}&start=0&max_results={max_results}"
             
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
-                response = await client.get(url, headers=self.headers)
+            # ArXiv rate-limits at 1 request / 3 seconds.  Acquire a
+            # lightweight async lock to prevent concurrent calls from
+            # violating the limit.
+            if not hasattr(SearchTools, '_arxiv_lock'):
+                SearchTools._arxiv_lock = asyncio.Lock()
+                SearchTools._arxiv_last_call = 0.0
+
+            async with SearchTools._arxiv_lock:
+                import time
+                since_last = time.monotonic() - SearchTools._arxiv_last_call
+                if since_last < 3.0:
+                    await asyncio.sleep(3.0 - since_last)
+
+                async with httpx.AsyncClient(timeout=self.timeout, follow_redirects=True) as client:
+                    response = await client.get(url, headers=self.headers)
+
+                SearchTools._arxiv_last_call = time.monotonic()
+            
+            if response.status_code == 200:
+                # Parse Atom feed
+                feed = feedparser.parse(response.text)
                 
-                if response.status_code == 200:
-                    # Parse Atom feed
-                    feed = feedparser.parse(response.text)
+                for entry in feed.entries:
+                    # Extract authors
+                    authors = [author.get("name", "") for author in entry.get("authors", [])]
                     
-                    for entry in feed.entries:
-                        # Extract authors
-                        authors = [author.get("name", "") for author in entry.get("authors", [])]
-                        
-                        # Get PDF link
-                        pdf_link = ""
-                        for link in entry.get("links", []):
-                            if link.get("type") == "application/pdf":
-                                pdf_link = link.get("href", "")
-                                break
-                        
-                        results.append({
-                            "title": entry.get("title", "").replace("\n", " "),
-                            "url": entry.get("link", ""),
-                            "pdf_url": pdf_link,
-                            "snippet": entry.get("summary", "").replace("\n", " ")[:500],
-                            "authors": authors,
-                            "published_at": entry.get("published"),
-                            "updated_at": entry.get("updated"),
-                            "categories": [tag.get("term") for tag in entry.get("tags", [])],
-                            "arxiv_id": entry.get("id", "").split("/abs/")[-1],
-                            "source_type": "academic",
-                            "api_source": "arxiv",
-                            "retrieved_at": datetime.utcnow().isoformat()
-                        })
-                else:
-                    logger.error(f"ArXiv search error: {response.status_code}")
+                    # Get PDF link
+                    pdf_link = ""
+                    for link in entry.get("links", []):
+                        if link.get("type") == "application/pdf":
+                            pdf_link = link.get("href", "")
+                            break
+                    
+                    results.append({
+                        "title": entry.get("title", "").replace("\n", " "),
+                        "url": entry.get("link", ""),
+                        "pdf_url": pdf_link,
+                        "snippet": entry.get("summary", "").replace("\n", " ")[:500],
+                        "authors": authors,
+                        "published_at": entry.get("published"),
+                        "updated_at": entry.get("updated"),
+                        "categories": [tag.get("term") for tag in entry.get("tags", [])],
+                        "arxiv_id": entry.get("id", "").split("/abs/")[-1],
+                        "source_type": "academic",
+                        "api_source": "arxiv",
+                        "retrieved_at": datetime.utcnow().isoformat()
+                    })
+            elif response.status_code == 503:
+                logger.warning(f"ArXiv rate-limited (503) for query: {query[:60]}")
+                sentry_sdk.capture_message(
+                    f"ArXiv 503 rate-limit for: {query[:120]}",
+                    level="warning",
+                )
+            else:
+                logger.error(f"ArXiv search error: HTTP {response.status_code} — {response.text[:200]}")
                     
             logger.info(f"ArXiv search returned {len(results)} results")
             
@@ -438,7 +562,7 @@ class SearchTools:
         results = []
         
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
+            async with httpx.AsyncClient(timeout=self.timeout, follow_redirects=True, headers=self.headers) as client:
                 # Step 1: Search for IDs
                 search_params = {
                     "db": "pubmed",
@@ -559,7 +683,7 @@ class SearchTools:
         results = []
         
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
+            async with httpx.AsyncClient(timeout=self.timeout, follow_redirects=True, headers=self.headers) as client:
                 # Search for pages
                 search_params = {
                     "action": "query",
@@ -575,32 +699,54 @@ class SearchTools:
                 )
                 
                 if search_response.status_code != 200:
+                    logger.error(f"Wikipedia search API error: HTTP {search_response.status_code}")
                     return results
                 
                 search_data = search_response.json()
                 pages = search_data.get("query", {}).get("search", [])
+                logger.info(f"Wikipedia search found {len(pages)} pages for: {query[:60]}")
                 
                 # Get summaries for each page
                 for page in pages:
                     title = page.get("title", "")
                     
-                    # Get page summary
-                    summary_response = await client.get(
-                        f"{settings.wikipedia_api_base}/page/summary/{quote_plus(title)}"
-                    )
-                    
-                    if summary_response.status_code == 200:
-                        summary_data = summary_response.json()
+                    try:
+                        # Get page summary — use underscores, NOT quote_plus
+                        # (the REST API returns 404 for spaces encoded as +)
+                        title_slug = title.replace(" ", "_")
+                        summary_response = await client.get(
+                            f"{settings.wikipedia_api_base}/page/summary/{title_slug}"
+                        )
                         
-                        results.append({
-                            "title": summary_data.get("title", title),
-                            "url": summary_data.get("content_urls", {}).get("desktop", {}).get("page", ""),
-                            "snippet": summary_data.get("extract", ""),
-                            "description": summary_data.get("description", ""),
-                            "source_type": "wikipedia",
-                            "api_source": "wikipedia",
-                            "retrieved_at": datetime.utcnow().isoformat()
-                        })
+                        if summary_response.status_code == 200:
+                            summary_data = summary_response.json()
+                            
+                            results.append({
+                                "title": summary_data.get("title", title),
+                                "url": summary_data.get("content_urls", {}).get("desktop", {}).get("page", ""),
+                                "snippet": summary_data.get("extract", ""),
+                                "description": summary_data.get("description", ""),
+                                "source_type": "wikipedia",
+                                "api_source": "wikipedia",
+                                "retrieved_at": datetime.utcnow().isoformat()
+                            })
+                        else:
+                            logger.warning(f"Wikipedia summary fetch failed for '{title}': HTTP {summary_response.status_code}")
+                            # Still include the page with search snippet as fallback
+                            snippet_html = page.get("snippet", "")
+                            import re as _re
+                            snippet_clean = _re.sub(r'<[^>]+>', '', snippet_html)
+                            results.append({
+                                "title": title,
+                                "url": f"https://en.wikipedia.org/wiki/{title.replace(' ', '_')}",
+                                "snippet": snippet_clean,
+                                "description": "",
+                                "source_type": "wikipedia",
+                                "api_source": "wikipedia",
+                                "retrieved_at": datetime.utcnow().isoformat()
+                            })
+                    except Exception as page_err:
+                        logger.warning(f"Wikipedia page '{title}' fetch error: {page_err}")
                         
             logger.info(f"Wikipedia search returned {len(results)} results")
             

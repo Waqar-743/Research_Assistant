@@ -521,10 +521,20 @@ Write the section (minimum 250 words):"""
             for s in sections
         ])
 
-        summary = await self.formatting_tools.create_summary(
-            content=full_content,
-            max_length=1200
-        )
+        try:
+            summary = await self.formatting_tools.create_summary(
+                content=full_content,
+                max_length=1200
+            )
+        except Exception as e:
+            logger.error(f"Executive summary generation failed: {e}")
+            summary = (
+                "This research identified and analyzed multiple sources on the "
+                "requested topic. While relevant sources were collected, the "
+                "automated extraction pipeline encountered difficulties distilling "
+                "specific findings. The sections below present the available evidence. "
+                "Manual review of cited sources is recommended."
+            )
         
         # Add confidence note
         confidence_level = confidence_summary.get("confidence_level", "medium")

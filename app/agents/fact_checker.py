@@ -96,6 +96,11 @@ Your verification must be thorough and honest."""
         if not findings:
             findings = context.get("raw_findings", [])
         # ──────────────────────────────────────────────────────────
+
+        logger.info(
+            f"Fact-Checker loaded state: session={session_id}, "
+            f"sources={len(sources)}, findings={len(findings)}, insights={len(insights)}"
+        )
         
         logger.info(f"Fact-Checker starting verification for: {query} ({len(findings)} findings, {len(sources)} sources)")
         

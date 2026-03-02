@@ -48,11 +48,20 @@ class RedisCache:
             return
 
         try:
+            # For rediss:// URLs (Heroku Redis), we must accept self-signed certs.
+            # redis-py accepts `ssl_cert_reqs` as a string via from_url().
+            kwargs: Dict[str, Any] = {
+                "decode_responses": True,
+                "socket_connect_timeout": 5,
+                "retry_on_timeout": True,
+            }
+            if settings.redis_url and settings.redis_url.startswith("rediss://"):
+                import ssl as _ssl
+                kwargs["ssl_cert_reqs"] = "none"
+
             self._client = aioredis.from_url(
                 settings.redis_url,
-                decode_responses=True,
-                socket_connect_timeout=5,
-                retry_on_timeout=True,
+                **kwargs,
             )
             await self._client.ping()
             logger.info("Connected to Redis")

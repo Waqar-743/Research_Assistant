@@ -220,6 +220,8 @@ Rules:
 - Include queries that would find statistics, data, and expert analysis
 - Include queries that would find recent studies and reports
 - Make queries specific enough to avoid irrelevant results
+- Produce SHORT KEYWORD-STYLE queries (3-8 words), NOT full questions or sentences
+  Example: "AI job market impact 2026 statistics" instead of "What is the impact of AI on the job market?"
 - DO NOT generate generic or tangential queries
 
 Return only the queries, one per line, no numbering or explanation."""
@@ -395,32 +397,80 @@ If none are relevant, respond with "NONE"."""
         offset: int = 0
     ) -> List[Dict[str, Any]]:
         """Extract findings from a batch of sources."""
-        
+        import json as _json
+        import re as _re
+
         if not sources:
             return []
-        
-        # Build source summary and a URL index for citation resolution
+
+        # ── Validate source content & build summaries ─────────────
         source_summaries = []
         source_url_index: Dict[int, Dict[str, str]] = {}
+        empty_content_count = 0
+
         for i, source in enumerate(sources):
             title = source.get("title", "Untitled")
-            snippet = source.get("snippet", "")[:600]
+            raw_text = (source.get("snippet") or source.get("description") or "").strip()
+            debug_line = f"DEBUG: Extracting from {title[:80]} - Content Length: {len(raw_text)}"
+            print(debug_line)
+            logger.info(debug_line)
+            if i == 0:
+                logger.info(f"[EXTRACT_PAYLOAD] First source text length: {len(raw_text)}")
+            if len(raw_text) < 100:
+                warning_msg = (
+                    f"[EXTRACT_PAYLOAD] Source content is suspiciously empty! "
+                    f"source_index={offset + i + 1} length={len(raw_text)}"
+                )
+                print(warning_msg)
+                logger.warning(warning_msg)
+
+            snippet = raw_text
             url = source.get("url", "")
             author = source.get("author", "") or ", ".join(source.get("authors", [])[:2])
             year = source.get("published_at", "")
             if year and len(str(year)) > 4:
                 year = str(year)[:4]
             api_src = source.get("api_source", "")
+
+            # Warn on empty content
+            if not snippet:
+                empty_content_count += 1
+                logger.warning(
+                    f"[EXTRACT] Source [{offset + i + 1}] '{title[:60]}' "
+                    f"(api={api_src}) has EMPTY snippet/content — LLM will only see the title"
+                )
+                # Use title as minimal content so the LLM has *something*
+                snippet = f"(No abstract/snippet available — title only: {title})"
+
             source_summaries.append(
-                f"[{offset + i + 1}] ({year}) {title} by {author} | {url}\n{snippet}"
+                f"[{offset + i + 1}] ({year}) {title} by {author} | {url}\n{snippet[:600]}"
             )
             source_url_index[offset + i + 1] = {
                 "title": title, "url": url, "api_source": api_src
             }
-        
+
+        if empty_content_count > 0:
+            logger.warning(
+                f"[EXTRACT] {empty_content_count}/{len(sources)} sources in this batch have empty content"
+            )
+
         context = "\n\n".join(source_summaries)
-        
-        prompt = f"""You are a research analyst. Extract SPECIFIC, CONCRETE findings from these sources that are directly relevant to the research query.
+
+        # ── Prompt: require STRICT JSON array output ──────────────
+        example_json = _json.dumps([
+            {
+                "finding": "Global AI spending reached $150 billion in 2025, up 35% year-over-year.",
+                "sources": [1, 4],
+                "credibility": "high"
+            },
+            {
+                "finding": "A 2025 Stanford study found 42% of enterprises adopted generative AI.",
+                "sources": [2],
+                "credibility": "medium"
+            }
+        ])
+
+        prompt = f"""You are a research data-extraction engine. Read the sources below and extract concrete, specific findings relevant to the research query.
 
 RESEARCH QUERY: {query}
 
@@ -428,58 +478,177 @@ SOURCES:
 {context}
 
 INSTRUCTIONS:
-- Extract 3-7 key findings that DIRECTLY answer or inform the research query
-- Each finding MUST contain specific data, statistics, expert opinions, or concrete insights
-- DO NOT generate generic statements — every finding must cite specific information from the sources
-- DO NOT say "no findings" — extract whatever relevant information exists, even if partial
-- If a source mentions a specific percentage, number, study result, or expert quote, include it
-- Distinguish between well-established facts and preliminary/contested claims
+- Extract at least 1-3 key factual findings that DIRECTLY answer or inform the research query.
+- Each finding MUST contain specific data, statistics, expert opinions, or concrete insights drawn from the sources.
+- DO NOT output generic or vague statements. Every finding must reference specific information visible in the sources above.
+- DO NOT say "no findings" — always extract whatever relevant information exists, even if partial.
+- If a source only has a title, infer the most likely factual claim it supports.
 
-Format each finding as:
-FINDING: [specific, data-rich statement directly related to the query]
-SOURCES: [{offset + 1}, {offset + 2}, ...]
-CREDIBILITY: [high/medium/low]
----"""
-        
+You are a data extraction sub-module.
+You MUST respond ONLY with a valid, flat JSON array of objects. DO NOT include preamble, markdown formatting, or explanations.
+Each element must be an object with exactly these keys:
+  "finding"  — a specific, data-rich statement
+  "sources"  — an array of the numeric source IDs that support it, e.g. [{offset + 1}, {offset + 3}]
+  "credibility" — one of "high", "medium", or "low"
+If no findings are available, return exactly: []
+
+Example (do NOT copy these values):
+{example_json}
+
+Respond with ONLY the JSON array:"""
+
         try:
             response = await self.think(prompt)
-            
-            # Parse findings and resolve source indices → {title, url} dicts
-            findings = []
-            current_finding: Dict[str, Any] = {}
 
-            import re as _re
-            for line in response.split('\n'):
-                line = line.strip()
-                if line.startswith('FINDING:'):
-                    if current_finding:
-                        findings.append(current_finding)
-                    current_finding = {"content": line[8:].strip(), "type": "insight"}
-                elif line.startswith('SOURCES:'):
-                    raw_refs = line[8:].strip()
-                    current_finding["source_refs"] = raw_refs
-                    # Resolve numeric indices to structured source objects
-                    resolved: List[Dict[str, str]] = []
-                    for idx_str in _re.findall(r'\d+', raw_refs):
-                        idx = int(idx_str)
-                        if idx in source_url_index:
-                            resolved.append(source_url_index[idx])
-                    current_finding["resolved_sources"] = resolved
-                elif line.startswith('CREDIBILITY:'):
-                    cred = line[12:].strip().lower()
-                    current_finding["preliminary_credibility"] = cred
-                elif line == '---' and current_finding:
-                    findings.append(current_finding)
-                    current_finding = {}
+            # ── Debug log: show exactly what the LLM returned ─────
+            logger.info(
+                f"[EXTRACT_RAW] LLM response (first 500 chars): "
+                f"{response[:500]!r}"
+            )
 
-            if current_finding:
-                findings.append(current_finding)
+            # ── Parse JSON — aggressive cleaning before parsing ─────
+            cleaned = self.clean_json_string(response)
 
+            # Try JSON parse
+            parsed = None
+            try:
+                parsed = _json.loads(cleaned)
+            except _json.JSONDecodeError:
+                parsed = None
+
+            if parsed is None:
+                logger.error(
+                    f"[EXTRACT] JSON parse FAILED for batch at offset {offset}. "
+                    f"Raw response (first 1200 chars): {response[:1200]!r}"
+                )
+                try:
+                    import sentry_sdk
+                    sentry_sdk.capture_message(
+                        f"[EXTRACT_JSON_PARSE_FAILED] offset={offset} raw={response[:2000]}",
+                        level="error"
+                    )
+                except Exception:
+                    pass
+                # ── Fallback: try the old FINDING:/SOURCES:/CREDIBILITY: format ──
+                return self._parse_finding_text_format(response, source_url_index)
+
+            if isinstance(parsed, dict):
+                if isinstance(parsed.get("findings"), list):
+                    parsed = parsed.get("findings", [])
+                elif isinstance(parsed.get("data"), list):
+                    parsed = parsed.get("data", [])
+                else:
+                    parsed = [parsed]
+
+            # ── Convert JSON objects to internal finding dicts ─────
+            findings: List[Dict[str, Any]] = []
+            for item in parsed:
+                if not isinstance(item, dict):
+                    continue
+                content = (
+                    str(item.get("finding") or item.get("content") or item.get("fact") or item.get("insight") or "")
+                    .strip()
+                )
+                if not content:
+                    continue
+                src_ids = item.get("sources", item.get("source_ids", item.get("source_id", [])))
+                if not isinstance(src_ids, list):
+                    src_ids = _re.findall(r'\d+', str(src_ids))
+                    src_ids = [int(x) for x in src_ids]
+                cred = str(item.get("credibility", "medium")).lower()
+
+                resolved: List[Dict[str, str]] = []
+                for idx in src_ids:
+                    idx = int(idx)
+                    if idx in source_url_index:
+                        resolved.append(source_url_index[idx])
+
+                findings.append({
+                    "content": content,
+                    "type": "insight",
+                    "source_refs": str(src_ids),
+                    "resolved_sources": resolved,
+                    "preliminary_credibility": cred,
+                })
+
+            if len(findings) == 0:
+                logger.error(
+                    f"[EXTRACT] JSON parsed but yielded 0 findings at offset {offset}. "
+                    f"Cleaned payload (first 1200 chars): {cleaned[:1200]!r}"
+                )
+
+            logger.info(f"[EXTRACT] Parsed {len(findings)} findings from batch at offset {offset}")
             return findings
-            
+
         except Exception as e:
-            logger.warning(f"Key info extraction failed: {e}")
+            logger.error(f"Key info extraction failed: {e}", exc_info=True)
             return []
+
+    @staticmethod
+    def clean_json_string(raw_str: str) -> str:
+        """Clean LLM output and isolate the JSON array between first '[' and last ']'."""
+        import re as _re
+
+        cleaned = (raw_str or "").strip()
+        if not cleaned:
+            return "[]"
+
+        # Strip common markdown wrappers and language prefixes
+        cleaned = _re.sub(r'^```(?:json|JSON)?\s*', '', cleaned)
+        cleaned = _re.sub(r'\s*```\s*$', '', cleaned)
+        cleaned = _re.sub(r'^(json|JSON)\s*', '', cleaned)
+        cleaned = cleaned.strip()
+
+        # Keep only the JSON array slice: first '[' to last ']'
+        first_bracket = cleaned.find('[')
+        last_bracket = cleaned.rfind(']')
+        if first_bracket != -1 and last_bracket != -1 and last_bracket > first_bracket:
+            cleaned = cleaned[first_bracket:last_bracket + 1]
+
+        return cleaned.strip()
+
+    @staticmethod
+    def _clean_extraction_json(raw_output: str) -> str:
+        """Backward-compatible alias for older call sites."""
+        return ResearcherAgent.clean_json_string(raw_output)
+
+    @staticmethod
+    def _parse_finding_text_format(
+        response: str,
+        source_url_index: Dict[int, Dict[str, str]]
+    ) -> List[Dict[str, Any]]:
+        """Fallback parser for the old FINDING:/SOURCES:/CREDIBILITY: text format."""
+        import re as _re
+        findings: List[Dict[str, Any]] = []
+        current_finding: Dict[str, Any] = {}
+
+        for line in response.split('\n'):
+            line = line.strip()
+            if line.upper().startswith('FINDING:'):
+                if current_finding and current_finding.get("content"):
+                    findings.append(current_finding)
+                current_finding = {"content": line[8:].strip(), "type": "insight"}
+            elif line.upper().startswith('SOURCES:'):
+                raw_refs = line[8:].strip()
+                current_finding["source_refs"] = raw_refs
+                resolved: List[Dict[str, str]] = []
+                for idx_str in _re.findall(r'\d+', raw_refs):
+                    idx = int(idx_str)
+                    if idx in source_url_index:
+                        resolved.append(source_url_index[idx])
+                current_finding["resolved_sources"] = resolved
+            elif line.upper().startswith('CREDIBILITY:'):
+                cred = line[12:].strip().lower()
+                current_finding["preliminary_credibility"] = cred
+            elif line == '---' and current_finding and current_finding.get("content"):
+                findings.append(current_finding)
+                current_finding = {}
+
+        if current_finding and current_finding.get("content"):
+            findings.append(current_finding)
+
+        logger.info(f"[EXTRACT] Text-format fallback parsed {len(findings)} findings")
+        return findings
     
     async def _deduplicate_findings(
         self,
