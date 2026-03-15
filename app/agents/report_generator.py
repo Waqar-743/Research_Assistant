@@ -15,7 +15,7 @@ from app.agents.base_agent import BaseAgent, AgentStatus
 from app.tools.formatting_tools import FormattingTools
 from app.config import settings
 from app.utils.logging import logger
-from app.database.repositories import SourceRepository, ResearchRepository
+from app.database.repositories import SourceRepository, FindingRepository, ResearchRepository
 
 
 class ReportGeneratorAgent(BaseAgent):
@@ -94,9 +94,18 @@ Your reports should be publication-ready with zero placeholder text."""
             key_insights = pipeline.get("key_insights", [])
             confidence_summary = pipeline.get("confidence_summary", {})
 
-            # Fallback chain
+            # Fallback chain within pipeline_data
             if not findings:
                 findings = pipeline.get("organized_findings", [])
+
+            # Fallback: load raw findings from FindingRepository if pipeline_data has nothing
+            if not findings:
+                logger.warning(
+                    f"[REPORT_GEN] No findings in pipeline_data for session {session_id}, "
+                    f"loading raw findings from FindingRepository"
+                )
+                finding_docs = await FindingRepository.get_by_research(session_id)
+                findings = [self._finding_doc_to_dict(f) for f in finding_docs]
         else:
             # Backward compat / tests
             sources = context.get("sources", [])
@@ -104,7 +113,7 @@ Your reports should be publication-ready with zero placeholder text."""
             key_insights = context.get("key_insights", [])
             confidence_summary = context.get("confidence_summary", {})
 
-        # Extra fallback for contexts missing validated_findings
+        # Extra fallback from context (orchestrator now passes raw_findings)
         if not findings:
             findings = context.get("organized_findings", [])
         if not findings:
@@ -583,7 +592,7 @@ Write the section (minimum 250 words):"""
         
         return round(min(quality, 5.0), 1)
 
-    # ── Phase 1 helper ────────────────────────────────────────────
+    # ── Phase 1 helpers ───────────────────────────────────────────
     @staticmethod
     def _source_doc_to_dict(doc) -> Dict[str, Any]:
         """Convert a Source Beanie document to the dict format agents expect."""
@@ -597,4 +606,19 @@ Write the section (minimum 250 words):"""
             "published_at": str(doc.published_at) if doc.published_at else "",
             "credibility_score": doc.credibility_score,
             **(doc.metadata or {}),
+        }
+
+    @staticmethod
+    def _finding_doc_to_dict(doc) -> Dict[str, Any]:
+        """Convert a Finding Beanie document to the dict format agents expect."""
+        meta = doc.metadata or {}
+        return {
+            "content": doc.content,
+            "title": doc.title,
+            "finding_type": doc.finding_type.value if hasattr(doc.finding_type, "value") else str(doc.finding_type or "insight"),
+            "source_refs": meta.get("source_refs", ""),
+            "resolved_sources": meta.get("resolved_sources", []),
+            "confidence": meta.get("preliminary_credibility", "medium"),
+            "confidence_score": doc.confidence_score,
+            "verified": doc.verified,
         }

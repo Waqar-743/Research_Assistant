@@ -264,9 +264,12 @@ class AgentOrchestrator:
                     logger.info(f"Retry persisted {source_count} sources")
                 else:
                     logger.error("Retry also failed — continuing with 0 sources")
-            # Only lightweight refs travel in context from now on
+            # Lightweight refs travel in context; also keep raw_findings
+            # as fallback data for downstream agents when DB loading fails.
             final_context["session_id"] = session_id
             final_context["sources_count"] = researcher_result.get("sources_count", {})
+            final_context["raw_findings"] = researcher_result.get("raw_findings", [])
+            final_context["sources"] = researcher_result.get("sources", [])
             # ──────────────────────────────────────────────────────────
             
             # Supervised checkpoint after research
@@ -513,10 +516,12 @@ class AgentOrchestrator:
             if source_dicts:
                 await SourceRepository.create_many(source_dicts)
 
-            # Bulk-insert finding documents
+            # Build finding documents
             finding_dicts = []
             for f in raw_findings:
                 content = f.get("content", "")
+                if not content:
+                    continue
                 finding_dicts.append({
                     "research_id": session_id,
                     "title": content[:80] if content else "Finding",
@@ -530,7 +535,18 @@ class AgentOrchestrator:
                     },
                 })
             if finding_dicts:
-                await FindingRepository.create_many(finding_dicts)
+                try:
+                    await FindingRepository.create_many(finding_dicts)
+                except Exception as bulk_err:
+                    # Bulk insert failed (e.g. schema validation) — insert one by one
+                    logger.warning(
+                        f"Bulk finding insert failed ({bulk_err}), falling back to per-item insert"
+                    )
+                    for fd in finding_dicts:
+                        try:
+                            await FindingRepository.create(fd)
+                        except Exception as single_err:
+                            logger.warning(f"Single finding insert failed: {single_err}")
 
             persisted_source_count = await SourceRepository.count_by_research(session_id)
             persisted_finding_count = await FindingRepository.count_by_research(session_id)
@@ -612,7 +628,18 @@ class AgentOrchestrator:
         
         report_data = self.results.get("report_generator", {}).get("report", {})
         fact_check_data = self.results.get("fact_checker", {})
-        
+        analyst_data = self.results.get("analyst", {})
+        researcher_data = self.results.get("researcher", {})
+
+        # Use validated findings if available, otherwise fall back through the chain
+        findings = fact_check_data.get("validated_findings", [])
+        if not findings:
+            findings = analyst_data.get("organized_findings", [])
+        if not findings:
+            findings = analyst_data.get("consolidated_findings", [])
+        if not findings:
+            findings = researcher_data.get("raw_findings", [])
+
         return {
             "status": "completed",
             "session_id": self.session_id,
@@ -629,14 +656,14 @@ class AgentOrchestrator:
             },
             
             # Research data
-            "sources": self.results.get("researcher", {}).get("sources", []),
-            "sources_count": self.results.get("researcher", {}).get("sources_count", {}),
+            "sources": researcher_data.get("sources", []),
+            "sources_count": researcher_data.get("sources_count", {}),
             
             # Analysis data
-            "findings": fact_check_data.get("validated_findings", []),
-            "patterns": self.results.get("analyst", {}).get("patterns", []),
-            "key_insights": self.results.get("analyst", {}).get("key_insights", []),
-            "contradictions": self.results.get("analyst", {}).get("contradictions", []),
+            "findings": findings,
+            "patterns": analyst_data.get("patterns", []),
+            "key_insights": analyst_data.get("key_insights", []),
+            "contradictions": analyst_data.get("contradictions", []),
             
             # Confidence data
             "confidence_summary": fact_check_data.get("confidence_summary", {}),
