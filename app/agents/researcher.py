@@ -599,23 +599,27 @@ Respond with ONLY the JSON array:"""
         cleaned = _re.sub(r'^(json|JSON)\s*', '', cleaned)
         cleaned = cleaned.strip()
 
-        # Keep only the JSON array or object slice
+        # Try to find the outermost array or object
         first_bracket = cleaned.find('[')
+        last_bracket = cleaned.rfind(']')
         first_brace = cleaned.find('{')
+        last_brace = cleaned.rfind('}')
 
         start_idx = -1
-        if first_bracket != -1 and first_brace != -1:
-            start_idx = min(first_bracket, first_brace)
-        elif first_bracket != -1:
-            start_idx = first_bracket
-        elif first_brace != -1:
-            start_idx = first_brace
+        end_idx = -1
 
-        if start_idx != -1:
-            end_char = ']' if cleaned[start_idx] == '[' else '}'
-            last_idx = cleaned.rfind(end_char)
-            if last_idx != -1 and last_idx > start_idx:
-                cleaned = cleaned[start_idx:last_idx + 1]
+        if first_bracket != -1 and first_brace != -1:
+            if first_bracket < first_brace:
+                start_idx, end_idx = first_bracket, last_bracket
+            else:
+                start_idx, end_idx = first_brace, last_brace
+        elif first_bracket != -1:
+            start_idx, end_idx = first_bracket, last_bracket
+        elif first_brace != -1:
+            start_idx, end_idx = first_brace, last_brace
+
+        if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+            cleaned = cleaned[start_idx:end_idx + 1]
 
         return cleaned.strip()
 
