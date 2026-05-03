@@ -314,26 +314,53 @@ class ResearchService:
         persists the **report** (to avoid double-inserting sources
         and findings).
         """
+        report_data = results.get("report", {})
+        if not report_data:
+            logger.warning(f"No report_data to save for session {session_id}")
+            return
+
         try:
-            # Save report (the one thing not yet persisted by orchestrator)
-            report_data = results.get("report", {})
-            if report_data:
-                report = Report(
-                    research_id=session_id,
-                    title=report_data.get("title", ""),
-                    summary=report_data.get("summary", ""),
-                    markdown_content=report_data.get("markdown_content", ""),
-                    html_content=report_data.get("html_content", ""),
-                    sections=report_data.get("sections", []),
-                    citation_style=report_data.get("citation_style", "APA"),
-                    quality_score=report_data.get("quality_score", 0),
-                    generated_at=datetime.utcnow()
+            report = Report(
+                research_id=session_id,
+                title=report_data.get("title") or "",
+                summary=report_data.get("summary") or "",
+                markdown_content=report_data.get("markdown_content") or "",
+                html_content=report_data.get("html_content") or None,
+                sections=report_data.get("sections") or [],
+                citation_style=report_data.get("citation_style") or "APA",
+                quality_score=float(report_data.get("quality_score") or 0),
+                generated_at=datetime.utcnow()
+            )
+            await report.insert()
+            logger.info(f"Saved report for session {session_id}")
+
+        except Exception as insert_err:
+            # Insert failed (e.g. duplicate key on re-run). Attempt upsert.
+            logger.warning(
+                f"Report insert failed for session {session_id} ({insert_err}), "
+                f"attempting update of existing report..."
+            )
+            try:
+                existing = await Report.find_one(Report.research_id == session_id)
+                if existing:
+                    await existing.update({"$set": {
+                        "title": report_data.get("title") or "",
+                        "summary": report_data.get("summary") or "",
+                        "markdown_content": report_data.get("markdown_content") or "",
+                        "html_content": report_data.get("html_content") or None,
+                        "sections": report_data.get("sections") or [],
+                        "quality_score": float(report_data.get("quality_score") or 0),
+                    }})
+                    logger.info(f"Updated existing report for session {session_id}")
+                else:
+                    logger.error(
+                        f"Report could not be saved for session {session_id}: "
+                        f"insert failed and no existing document found. Error: {insert_err}"
+                    )
+            except Exception as upsert_err:
+                logger.error(
+                    f"Failed to save/update report for session {session_id}: {upsert_err}"
                 )
-                await report.insert()
-                logger.info(f"Saved report for session {session_id}")
-                
-        except Exception as e:
-            logger.error(f"Failed to save research results: {e}")
     
     async def cancel_research(self, session_id: str):
         """Cancel an in-progress research session."""

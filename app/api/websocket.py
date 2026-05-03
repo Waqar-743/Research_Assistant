@@ -100,6 +100,45 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 
+def _format_key_findings(value) -> str:
+    if isinstance(value, list):
+        return "\n".join(
+            f"- {item}" for item in value if isinstance(item, str) and item.strip()
+        )
+    if isinstance(value, str):
+        return value.strip()
+    return ""
+
+
+def _build_report_context_text(query: str, report: dict) -> str:
+    if not report:
+        return f"Research Query: {query}" if query else ""
+
+    summary = (report.get("summary") or report.get("executive_summary") or "").strip()
+    key_findings = _format_key_findings(report.get("key_findings"))
+    markdown_content = str(report.get("markdown_content") or "").strip()
+    sections = report.get("sections") or []
+
+    if not key_findings and sections:
+        key_findings = "\n".join(
+            f"- {section.get('title', 'Section')}"
+            for section in sections[:5]
+            if isinstance(section, dict) and section.get("title")
+        )
+
+    parts = []
+    if query:
+        parts.append(f"Research Query: {query}")
+    if summary:
+        parts.append(f"Executive Summary: {summary}")
+    if key_findings:
+        parts.append(f"Key Findings:\n{key_findings}")
+    if markdown_content:
+        parts.append(f"Report Content:\n{markdown_content[:12000]}")
+
+    return "\n\n".join(parts)
+
+
 async def send_agent_update(
     session_id: str,
     agent_name: str,
@@ -408,11 +447,10 @@ async def handle_chat_message(session_id: str, message: dict):
         # Build context for the question
         context_text = ""
         if conversation.context:
-            if conversation.context.get("report"):
-                report = conversation.context["report"]
-                context_text += f"Research Query: {conversation.context.get('query', '')}\n"
-                context_text += f"Executive Summary: {report.get('executive_summary', '')}\n"
-                context_text += f"Key Findings: {report.get('key_findings', '')}\n"
+            context_text = _build_report_context_text(
+                conversation.context.get("query", ""),
+                conversation.context.get("report") or {}
+            )
         
         # Add document context
         if document_ids:
@@ -435,8 +473,8 @@ async def handle_chat_message(session_id: str, message: dict):
         analyzer = DocumentAnalyzer()
         response = await analyzer.answer_question(
             question=user_content,
-            context=context_text,
-            conversation_history=[
+            document_context=context_text,
+            chat_history=[
                 {"role": m.role.value, "content": m.content}
                 for m in (conversation.messages or [])[-10:]
             ]

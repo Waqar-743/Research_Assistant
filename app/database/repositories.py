@@ -276,14 +276,14 @@ class ResearchRepository:
         key: str,
         value: Any
     ):
-        """Store an intermediate result under ``pipeline_data.<key>``."""
+        """Store an intermediate result under ``pipeline_data.<key>`` atomically."""
         session = await ResearchSession.find_one(
             ResearchSession.research_id == research_id
         )
         if session:
-            pipeline = session.pipeline_data or {}
-            pipeline[key] = value
-            await session.update({"$set": {"pipeline_data": pipeline}})
+            # Use dot-notation $set to update a single nested key atomically,
+            # avoiding the read-modify-write race condition of the old approach.
+            await session.update({"$set": {f"pipeline_data.{key}": value}})
 
     @staticmethod
     async def get_pipeline_data(
@@ -395,6 +395,26 @@ class FindingRepository:
         finding_docs = [Finding(**f) for f in findings]
         await Finding.insert_many(finding_docs)
         return finding_docs
+
+    @staticmethod
+    async def replace_for_research(
+        research_id: str,
+        findings: List[Dict[str, Any]]
+    ) -> List[Finding]:
+        """Replace all findings for a research session."""
+        await Finding.find(Finding.research_id == research_id).delete()
+        if not findings:
+            return []
+
+        try:
+            finding_docs = [Finding(**f) for f in findings]
+            await Finding.insert_many(finding_docs)
+            return finding_docs
+        except Exception:
+            created_docs = []
+            for finding in findings:
+                created_docs.append(await FindingRepository.create(finding))
+            return created_docs
     
     @staticmethod
     async def get_by_research(research_id: str) -> List[Finding]:

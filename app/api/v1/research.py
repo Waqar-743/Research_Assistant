@@ -51,6 +51,109 @@ def get_research_service() -> ResearchService:
     return _research_service
 
 
+def _coerce_confidence_score(value) -> float:
+    if isinstance(value, (int, float)):
+        return max(0.0, min(float(value), 1.0))
+
+    mapping = {
+        "high": 0.85,
+        "medium": 0.6,
+        "low": 0.35,
+    }
+    return mapping.get(str(value or "").lower(), 0.5)
+
+
+def _format_key_findings(value) -> str:
+    if isinstance(value, list):
+        return "\n".join(
+            f"- {item}" for item in value if isinstance(item, str) and item.strip()
+        )
+    if isinstance(value, str):
+        return value.strip()
+    return ""
+
+
+def _build_report_context_text(query: str, report: dict) -> str:
+    if not report:
+        return f"Research Query: {query}" if query else ""
+
+    summary = (report.get("summary") or report.get("executive_summary") or "").strip()
+    key_findings = _format_key_findings(report.get("key_findings"))
+    markdown_content = str(report.get("markdown_content") or "").strip()
+    sections = report.get("sections") or []
+
+    if not key_findings and sections:
+        key_findings = "\n".join(
+            f"- {section.get('title', 'Section')}"
+            for section in sections[:5]
+            if isinstance(section, dict) and section.get("title")
+        )
+
+    parts = []
+    if query:
+        parts.append(f"Research Query: {query}")
+    if summary:
+        parts.append(f"Executive Summary: {summary}")
+    if key_findings:
+        parts.append(f"Key Findings:\n{key_findings}")
+    if markdown_content:
+        parts.append(f"Report Content:\n{markdown_content[:12000]}")
+
+    return "\n\n".join(parts)
+
+
+def _build_pipeline_findings(session: ResearchSession) -> list[dict]:
+    pipeline = session.pipeline_data or {}
+    pipeline_findings = (
+        pipeline.get("validated_findings")
+        or pipeline.get("organized_findings")
+        or pipeline.get("consolidated_findings")
+        or []
+    )
+
+    normalized_findings = []
+    for index, finding in enumerate(pipeline_findings, start=1):
+        if not isinstance(finding, dict):
+            continue
+
+        content = (finding.get("content") or finding.get("title") or "").strip()
+        if not content:
+            continue
+
+        supporting_sources = finding.get("supporting_sources") or []
+        if not supporting_sources:
+            for source in finding.get("resolved_sources", []) or []:
+                if isinstance(source, dict):
+                    source_value = source.get("url") or source.get("title")
+                else:
+                    source_value = str(source)
+                if source_value:
+                    supporting_sources.append(source_value)
+
+        normalized_findings.append({
+            "finding_id": finding.get("finding_id") or finding.get("id") or f"{session.research_id}_pipeline_{index}",
+            "title": finding.get("title") or content[:80],
+            "content": content,
+            "finding_type": finding.get("finding_type") or finding.get("type") or "insight",
+            "confidence_score": _coerce_confidence_score(
+                finding.get("confidence_score")
+                if finding.get("confidence_score") is not None
+                else (finding.get("confidence") or finding.get("preliminary_credibility"))
+            ),
+            "verified": bool(finding.get("verified", False)),
+            "supporting_sources": supporting_sources,
+            "agent_generated_by": finding.get("agent_generated_by", "pipeline"),
+            "created_at": session.completed_at or session.created_at,
+        })
+
+    return normalized_findings
+
+
+def _report_sections(report: dict) -> list[dict]:
+    sections = report.get("sections") or []
+    return [section for section in sections if isinstance(section, dict)]
+
+
 @router.post("/start", response_model=APIResponse)
 async def start_research(
     request: ResearchStartRequest,
@@ -205,6 +308,38 @@ async def get_research_results(session_id: str):
         sources = await SourceRepository.get_by_research(session.research_id)
         findings = await FindingRepository.get_by_research(session.research_id)
         report = await ReportRepository.get_by_research(session.research_id)
+        findings_payload = findings or _build_pipeline_findings(session)
+
+        # Build the ReportResponse — fall back to session.final_report when the
+        # Report collection document is missing (e.g. insert failed silently).
+        report_response: Optional[ReportResponse] = None
+        if report:
+            try:
+                report_response = ReportResponse.model_validate(report)
+            except Exception as e:
+                logger.warning(f"ReportResponse.model_validate failed: {e}")
+
+        if report_response is None and session.final_report:
+            fr = session.final_report
+            try:
+                report_response = ReportResponse(
+                    report_id="session_inline",
+                    title=fr.get("title") or "Research Report",
+                    summary=fr.get("summary") or None,
+                    markdown_content=fr.get("markdown_content") or "",
+                    html_content=fr.get("html_content") or None,
+                    sections=fr.get("sections") or [],
+                    citations=[],
+                    citation_style=fr.get("citation_style") or "APA",
+                    quality_score=float(fr.get("quality_score") or 0),
+                    generated_at=session.completed_at or datetime.utcnow(),
+                )
+                logger.info(
+                    f"Built inline ReportResponse from session.final_report "
+                    f"for session {session_id}"
+                )
+            except Exception as e:
+                logger.warning(f"Could not build inline ReportResponse: {e}")
 
         results = ResearchResultsResponse(
             research_id=session.research_id,
@@ -214,12 +349,12 @@ async def get_research_results(session_id: str):
             completed_at=session.completed_at,
             processing_time=session.get_processing_time_formatted(),
             quality_score=session.quality_score,
-            report=ReportResponse.model_validate(report) if report else None,
-            findings=[FindingResponse.model_validate(f) for f in findings],
+            report=report_response,
+            findings=[FindingResponse.model_validate(f) for f in findings_payload],
             sources=[SourceResponse.model_validate(s) for s in sources],
             metadata={
                 "sources_count": session.sources_count or {"total": len(sources)},
-                "findings_count": session.findings_count or len(findings),
+                "findings_count": session.findings_count or len(findings_payload),
                 "confidence_summary": session.confidence_summary or {}
             }
         )
@@ -378,35 +513,35 @@ async def start_hybrid_research(
                     "key_findings": doc.key_findings
                 })
         
+        hybrid_query = request.search_query or ""
+
         # Create session with hybrid mode
         session = ResearchSession(
-            session_id=session_id,
-            query=request.query,
-            status=ResearchStatus.QUEUED,
+            research_id=session_id,
+            user_id="anonymous",
+            query=hybrid_query,
+            status=ResearchStatus.INITIALIZED,
             research_mode=ResearchMode("auto"),
             focus_areas=request.focus_areas or [],
-            source_preferences=request.source_preferences or [],
+            source_preferences=[],
             max_sources=request.max_sources or 300,
-            report_format=request.report_format or "markdown",
+            report_format=request.report_format.value if hasattr(request.report_format, "value") else (request.report_format or "markdown"),
             citation_style=request.citation_style or "APA",
             created_at=datetime.utcnow()
         )
         await session.insert()
-        
+
         # Start hybrid research in background
         background_tasks.add_task(
             research_service.execute_research,
             session_id=session_id,
-            query=request.query,
+            query=hybrid_query,
             focus_areas=request.focus_areas,
-            source_preferences=request.source_preferences,
+            source_preferences=[],
             max_sources=request.max_sources or 300,
             research_mode="hybrid",
-            report_format=request.report_format or "markdown",
-            citation_style=request.citation_style or "APA",
-            document_context=documents_context,
-            include_web_search=request.include_web_search,
-            weight_documents=request.weight_documents
+            report_format=request.report_format.value if hasattr(request.report_format, "value") else (request.report_format or "markdown"),
+            citation_style=request.citation_style.value if hasattr(request.citation_style, "value") else (request.citation_style or "APA"),
         )
         
         return APIResponse(
@@ -509,11 +644,10 @@ async def chat_with_research(
         # Build context for the question
         context_text = ""
         if conversation.context:
-            if conversation.context.get("report"):
-                report = conversation.context["report"]
-                context_text += f"Research Query: {conversation.context.get('query', '')}\n"
-                context_text += f"Executive Summary: {report.get('executive_summary', '')}\n"
-                context_text += f"Key Findings: {report.get('key_findings', '')}\n"
+            context_text = _build_report_context_text(
+                conversation.context.get("query", ""),
+                conversation.context.get("report") or {}
+            )
         
         # Add document context
         if request.document_ids:
@@ -528,8 +662,8 @@ async def chat_with_research(
         # Get response from analyzer
         response = await analyzer.answer_question(
             question=request.message,
-            context=context_text,
-            conversation_history=[
+            document_context=context_text,
+            chat_history=[
                 {"role": m.role.value, "content": m.content}
                 for m in (conversation.messages or [])[-10:]  # Last 10 messages for context
             ]
@@ -555,12 +689,13 @@ async def chat_with_research(
             status=200,
             message="Chat response generated",
             data=ChatMessageResponse(
-                conversation_id=conversation.conversation_id,
                 message_id=assistant_message.message_id,
                 role="assistant",
                 content=assistant_message.content,
+                agent_name=assistant_message.agent_name,
+                sources=assistant_message.sources,
+                document_refs=assistant_message.document_refs,
                 timestamp=assistant_message.timestamp,
-                metadata=assistant_message.metadata
             ).model_dump()
         )
         
@@ -587,13 +722,15 @@ async def get_chat_history(session_id: str, user_id: str = Query(default="anonym
         )
     
     messages = [
-        {
-            "message_id": m.message_id,
-            "role": m.role.value,
-            "content": m.content,
-            "timestamp": m.timestamp.isoformat() if m.timestamp else None,
-            "metadata": m.metadata
-        }
+        ChatMessageResponse(
+            message_id=m.message_id,
+            role=m.role.value,
+            content=m.content,
+            agent_name=m.agent_name,
+            sources=m.sources,
+            document_refs=m.document_refs,
+            timestamp=m.timestamp,
+        )
         for m in (conversation.messages or [])
     ]
     
@@ -601,11 +738,11 @@ async def get_chat_history(session_id: str, user_id: str = Query(default="anonym
         status=200,
         message=f"Found {len(messages)} messages",
         data=ConversationHistoryResponse(
-            conversation_id=conversation.conversation_id,
-            session_id=session_id,
+            research_id=session_id,
             messages=messages,
+            message_count=len(messages),
             created_at=conversation.created_at,
-            updated_at=conversation.updated_at
+            last_message_at=conversation.updated_at
         ).model_dump()
     )
 
@@ -692,20 +829,25 @@ async def export_research(
                     doc.add_paragraph(f"Generated: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}")
                     doc.add_paragraph(f"Session ID: {session_id}")
                 
+                summary = report.get("summary") or report.get("executive_summary")
+                sections = _report_sections(report)
+
                 # Executive Summary
-                if report.get("executive_summary"):
+                if summary:
                     doc.add_heading("Executive Summary", level=1)
-                    doc.add_paragraph(report["executive_summary"])
-                
-                # Key Findings
-                if report.get("key_findings"):
-                    doc.add_heading("Key Findings", level=1)
-                    doc.add_paragraph(report["key_findings"])
-                
+                    doc.add_paragraph(summary)
+
                 # Main Content
-                if report.get("detailed_analysis"):
-                    doc.add_heading("Detailed Analysis", level=1)
-                    doc.add_paragraph(report["detailed_analysis"])
+                if sections:
+                    for section in sections:
+                        title = section.get("title", "Section")
+                        content = section.get("content", "")
+                        doc.add_heading(title, level=1)
+                        if content:
+                            doc.add_paragraph(content)
+                elif report.get("markdown_content"):
+                    doc.add_heading("Report", level=1)
+                    doc.add_paragraph(report["markdown_content"])
                 
                 # Sources
                 if include_sources and report.get("sources"):
@@ -754,10 +896,14 @@ async def export_research(
 
 def _build_markdown_export(session, report: dict, include_sources: bool, include_metadata: bool) -> str:
     """Build markdown content for export."""
-    lines = []
-    
-    lines.append(f"# Research Report: {session.query}\n")
-    
+    summary = report.get("summary") or report.get("executive_summary")
+    markdown_content = str(report.get("markdown_content") or "").strip()
+
+    if markdown_content and not include_metadata and include_sources:
+        return markdown_content
+
+    lines = [f"# Research Report: {session.query}\n"]
+
     if include_metadata:
         lines.append("---")
         lines.append(f"**Session ID:** {session.research_id}")
@@ -766,38 +912,24 @@ def _build_markdown_export(session, report: dict, include_sources: bool, include
         if session.sources_count:
             lines.append(f"**Sources:** {session.sources_count}")
         lines.append("---\n")
-    
-    # Executive Summary
-    if report.get("executive_summary"):
+
+    if summary:
         lines.append("## Executive Summary\n")
-        lines.append(report["executive_summary"])
+        lines.append(summary)
         lines.append("")
-    
-    # Key Findings
-    if report.get("key_findings"):
-        lines.append("## Key Findings\n")
-        lines.append(report["key_findings"])
+
+    sections = _report_sections(report)
+    if sections:
+        for section in sections:
+            title = section.get("title", "Section")
+            content = section.get("content", "")
+            lines.append(f"## {title}\n")
+            lines.append(content)
+            lines.append("")
+    elif markdown_content:
+        lines.append(markdown_content)
         lines.append("")
-    
-    # Detailed Analysis
-    if report.get("detailed_analysis"):
-        lines.append("## Detailed Analysis\n")
-        lines.append(report["detailed_analysis"])
-        lines.append("")
-    
-    # Methodology
-    if report.get("methodology"):
-        lines.append("## Methodology\n")
-        lines.append(report["methodology"])
-        lines.append("")
-    
-    # Recommendations
-    if report.get("recommendations"):
-        lines.append("## Recommendations\n")
-        lines.append(report["recommendations"])
-        lines.append("")
-    
-    # Sources
+
     if include_sources and report.get("sources"):
         lines.append("## Sources\n")
         for i, source in enumerate(report["sources"][:50], 1):
@@ -808,6 +940,6 @@ def _build_markdown_export(session, report: dict, include_sources: bool, include
             else:
                 lines.append(f"{i}. {source}")
         lines.append("")
-    
+
     return "\n".join(lines)
 

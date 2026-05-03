@@ -284,6 +284,59 @@ class TestWebSocket:
         assert count == 0
 
 
+class TestResearchApiHelpers:
+    """Test backend helper fallbacks for report/chat/results."""
+
+    def test_pipeline_findings_are_normalized(self):
+        from app.api.v1.research import _build_pipeline_findings
+        from app.database.schemas import ResearchSession
+
+        session = ResearchSession.model_construct(
+            research_id="res-123",
+            user_id="user-456",
+            query="Test query",
+            created_at=datetime.utcnow(),
+            pipeline_data={
+                "validated_findings": [
+                    {
+                        "id": "finding_1",
+                        "title": "Validated finding",
+                        "content": "A validated finding with evidence.",
+                        "finding_type": "fact",
+                        "confidence": "high",
+                        "verified": True,
+                        "resolved_sources": [{"url": "https://example.com/source"}],
+                    }
+                ]
+            }
+        )
+
+        findings = _build_pipeline_findings(session)
+
+        assert len(findings) == 1
+        assert findings[0]["finding_id"] == "finding_1"
+        assert findings[0]["verified"] is True
+        assert findings[0]["supporting_sources"] == ["https://example.com/source"]
+        assert findings[0]["confidence_score"] > 0.8
+
+    def test_report_context_supports_current_report_shape(self):
+        from app.api.v1.research import _build_report_context_text
+
+        context = _build_report_context_text(
+            "AI safety",
+            {
+                "summary": "Summary text",
+                "markdown_content": "## Evidence\nSome details",
+                "sections": [{"title": "Evidence", "content": "Some details"}],
+            }
+        )
+
+        assert "Research Query: AI safety" in context
+        assert "Executive Summary: Summary text" in context
+        assert "Key Findings:\n- Evidence" in context
+        assert "Report Content:\n## Evidence" in context
+
+
 # Configuration for pytest
 def pytest_configure(config):
     """Configure pytest."""

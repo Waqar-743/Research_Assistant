@@ -11,7 +11,28 @@ import {
   WSMessage,
 } from '../types';
 
-const API_BASE = '/api/v1';
+const envApiUrl = import.meta.env.VITE_API_URL?.trim();
+const envWsUrl = import.meta.env.VITE_WS_URL?.trim();
+
+function stripTrailingSlashes(value: string): string {
+  return value.replace(/\/+$/, '');
+}
+
+const API_ORIGIN = envApiUrl ? stripTrailingSlashes(envApiUrl) : '';
+const API_BASE = API_ORIGIN ? `${API_ORIGIN}/api/v1` : '/api/v1';
+
+function resolveWebSocketBase(): string {
+  if (envWsUrl) {
+    return stripTrailingSlashes(envWsUrl);
+  }
+
+  if (API_ORIGIN) {
+    return API_ORIGIN.replace(/^http/i, 'ws');
+  }
+
+  const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
+  return `${proto}://${window.location.host}`;
+}
 
 /* ---------- helpers ---------- */
 
@@ -66,7 +87,7 @@ export async function startResearch(
       max_sources: opts.maxSources,
       report_format: opts.format.toLowerCase(),
       citation_style: opts.citationStyle,
-      research_mode: opts.mode === 'Deep Research' ? 'deep' : 'auto',
+      research_mode: 'auto',
     }),
   });
 }
@@ -137,8 +158,8 @@ export function connectWebSocket(
   onMessage: (msg: WSMessage) => void,
   onClose?: () => void,
 ): WebSocket {
-  const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
-  const ws = new WebSocket(`${proto}://${window.location.host}/ws/${sessionId}`);
+  const wsBase = resolveWebSocketBase();
+  const ws = new WebSocket(`${wsBase}/ws/${sessionId}`);
 
   ws.onmessage = (ev) => {
     try {
