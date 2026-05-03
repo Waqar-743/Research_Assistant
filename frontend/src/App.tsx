@@ -108,13 +108,21 @@ const EASE_OUT = [0.32, 0.72, 0, 1] as const;
    SceneBG — fixed OLED background with gradient orbs
 ───────────────────────────────────────────────────────── */
 const SceneBG = () => (
-  <div className="fixed inset-0 -z-10 overflow-hidden bg-[#030305]">
-    <div className="absolute -top-[35%] -left-[15%] w-[70%] h-[70%] rounded-full"
-      style={{ background: 'radial-gradient(circle, rgba(99,66,245,0.13) 0%, transparent 72%)' }} />
-    <div className="absolute top-[40%] -right-[20%] w-[60%] h-[60%] rounded-full"
-      style={{ background: 'radial-gradient(circle, rgba(139,92,246,0.09) 0%, transparent 72%)' }} />
-    <div className="absolute bottom-0 left-[20%] w-[50%] h-[40%] rounded-full"
-      style={{ background: 'radial-gradient(circle, rgba(16,185,129,0.05) 0%, transparent 72%)' }} />
+  <div className="fixed inset-0 overflow-hidden pointer-events-none" style={{ zIndex: 0 }}>
+    {/* Deep OLED black base */}
+    <div className="absolute inset-0 bg-[#030305]" />
+    {/* Purple orb — top left */}
+    <div className="absolute -top-[35%] -left-[15%] w-[75%] h-[75%] rounded-full"
+      style={{ background: 'radial-gradient(circle, rgba(99,66,245,0.18) 0%, transparent 70%)' }} />
+    {/* Violet orb — right centre */}
+    <div className="absolute top-[30%] -right-[20%] w-[65%] h-[65%] rounded-full"
+      style={{ background: 'radial-gradient(circle, rgba(139,92,246,0.12) 0%, transparent 70%)' }} />
+    {/* Emerald orb — bottom */}
+    <div className="absolute bottom-[-10%] left-[15%] w-[55%] h-[45%] rounded-full"
+      style={{ background: 'radial-gradient(circle, rgba(16,185,129,0.07) 0%, transparent 70%)' }} />
+    {/* Subtle grid lines */}
+    <div className="absolute inset-0 opacity-[0.025]"
+      style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px)', backgroundSize: '60px 60px' }} />
   </div>
 );
 
@@ -124,8 +132,9 @@ const SceneBG = () => (
 const BezelCard = ({ children, className = '', innerClassName = '' }: {
   children: React.ReactNode; className?: string; innerClassName?: string;
 }) => (
-  <div className={`p-[1.5px] bg-white/[0.04] border border-white/[0.07] rounded-[1.75rem] shadow-[0_24px_64px_rgba(0,0,0,0.55)] ${className}`}>
-    <div className={`bg-[#0a0a12] rounded-[calc(1.75rem-1.5px)] shadow-[inset_0_1px_1px_rgba(255,255,255,0.04)] ${innerClassName}`}>
+  <div className={`p-[1px] rounded-[1.75rem] shadow-[0_32px_80px_rgba(0,0,0,0.7),0_0_0_1px_rgba(255,255,255,0.06)] ${className}`}
+    style={{ background: 'linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.03) 50%, rgba(255,255,255,0.06) 100%)' }}>
+    <div className={`bg-[#0b0b14] rounded-[calc(1.75rem-1px)] shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] ${innerClassName}`}>
       {children}
     </div>
   </div>
@@ -142,15 +151,19 @@ const PillButton = ({
 }) => {
   const base = 'group inline-flex items-center gap-3 rounded-full font-semibold text-sm transition-all active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed';
   const variants = {
-    primary: 'bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-2.5 shadow-[0_0_28px_rgba(99,102,241,0.35)] hover:shadow-[0_0_40px_rgba(99,102,241,0.5)]',
-    ghost: 'bg-white/[0.05] hover:bg-white/[0.09] text-white/80 hover:text-white border border-white/[0.09] px-5 py-2.5',
+    primary: 'text-white px-6 py-2.5',
+    ghost: 'text-white/70 hover:text-white px-5 py-2.5',
+  };
+  const variantStyles = {
+    primary: { background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)', boxShadow: '0 0 32px rgba(99,102,241,0.4), inset 0 1px 0 rgba(255,255,255,0.15)' },
+    ghost: { background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' },
   };
   return (
     <motion.button
       onClick={onClick}
       disabled={disabled}
       whileTap={{ scale: 0.97 }}
-      style={{ transitionTimingFunction: `cubic-bezier(${EASE_OUT.join(',')})`, transitionDuration: '400ms' }}
+      style={{ transitionTimingFunction: `cubic-bezier(${EASE_OUT.join(',')})`, transitionDuration: '400ms', ...variantStyles[variant] }}
       className={`${base} ${variants[variant]} ${className}`}
     >
       {children}
@@ -162,7 +175,8 @@ const PillButton = ({
    Eyebrow Badge
 ───────────────────────────────────────────────────────── */
 const Eyebrow = ({ children }: { children: React.ReactNode }) => (
-  <span className="inline-flex items-center gap-1.5 rounded-full border border-indigo-500/30 bg-indigo-500/10 px-3 py-1 text-[10px] uppercase tracking-[0.2em] font-semibold text-indigo-300">
+  <span className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[10px] uppercase tracking-[0.22em] font-bold text-indigo-200"
+    style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.2) 0%, rgba(139,92,246,0.15) 100%)', border: '1px solid rgba(139,92,246,0.35)', boxShadow: '0 0 20px rgba(99,102,241,0.15)' }}>
     {children}
   </span>
 );
@@ -252,8 +266,9 @@ const AgentCell = ({ agent, isActive }: { agent: AgentState; isActive: boolean }
    Feature card (landing)
 ───────────────────────────────────────────────────────── */
 const FeatureChip = ({ icon: Icon, label }: { icon: React.ElementType; label: string }) => (
-  <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/[0.04] border border-white/[0.07] text-white/50 text-xs">
-    <Icon size={12} strokeWidth={1.5} />
+  <div className="flex items-center gap-2 px-4 py-2 rounded-full text-white/60 text-xs font-medium"
+    style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', backdropFilter: 'blur(8px)' }}>
+    <Icon size={12} strokeWidth={1.5} className="text-indigo-400" />
     <span>{label}</span>
   </div>
 );
@@ -438,7 +453,7 @@ ${report.sources?.length ? `<h2>Sources</h2><ul>${report.sources.map((s) => `<li
      Render
   ───────────────────────────────────────────────────────── */
   return (
-    <div className="grain-overlay min-h-[100dvh] text-white" style={{ fontFamily: 'var(--font-sans)' }}>
+    <div className="grain-overlay relative min-h-[100dvh] text-white bg-[#030305]" style={{ fontFamily: 'var(--font-sans)', zIndex: 1 }}>
       <SceneBG />
 
       {/* ══════════════════════════════════════════════════
@@ -449,7 +464,8 @@ ${report.sources?.length ? `<h2>Sources</h2><ul>${report.sources.map((s) => `<li
           initial={{ opacity: 0, y: -16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, ease: EASE_OUT }}
-          className="pointer-events-auto flex items-center gap-6 bg-[#0a0a12]/80 backdrop-blur-2xl border border-white/[0.08] rounded-full pl-4 pr-4 py-2.5 shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
+          className="pointer-events-auto flex items-center gap-6 backdrop-blur-2xl rounded-full pl-4 pr-4 py-2.5"
+          style={{ background: 'rgba(11,11,20,0.85)', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 8px 40px rgba(0,0,0,0.6), 0 0 0 1px rgba(99,102,241,0.1), inset 0 1px 0 rgba(255,255,255,0.06)' }}
         >
           {/* Logo */}
           <div className="flex items-center gap-2.5">
@@ -578,7 +594,7 @@ ${report.sources?.length ? `<h2>Sources</h2><ul>${report.sources.map((s) => `<li
               transition={{ duration: 0.5, ease: EASE_OUT }}
             >
               {/* Hero */}
-              <section className="min-h-[40vh] flex flex-col items-center justify-center text-center py-16 md:py-24 gap-6">
+              <section className="flex flex-col items-center justify-center text-center pt-12 pb-10 md:pt-16 md:pb-12 gap-7">
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -588,14 +604,20 @@ ${report.sources?.length ? `<h2>Sources</h2><ul>${report.sources.map((s) => `<li
                 </motion.div>
 
                 <motion.h1
-                  initial={{ opacity: 0, y: 24 }}
+                  initial={{ opacity: 0, y: 28 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.7, delay: 0.2, ease: EASE_OUT }}
-                  className="text-5xl sm:text-6xl md:text-7xl font-extrabold tracking-tight leading-[0.95] max-w-4xl"
-                  style={{ fontFamily: 'var(--font-display)' }}
+                  transition={{ duration: 0.8, delay: 0.18, ease: EASE_OUT }}
+                  className="text-6xl sm:text-7xl md:text-8xl font-extrabold tracking-tight leading-[0.92] max-w-4xl"
+                  style={{ fontFamily: 'var(--font-display)', letterSpacing: '-0.03em' }}
                 >
                   Research at the{' '}
-                  <span className="bg-gradient-to-r from-indigo-400 via-purple-400 to-violet-400 bg-clip-text text-transparent">
+                  <br className="hidden sm:block" />
+                  <span style={{
+                    background: 'linear-gradient(135deg, #818cf8 0%, #a78bfa 40%, #c084fc 70%, #e879f9 100%)',
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
+                    backgroundClip: 'text',
+                  }}>
                     speed of intelligence
                   </span>
                 </motion.h1>
@@ -604,17 +626,17 @@ ${report.sources?.length ? `<h2>Sources</h2><ul>${report.sources.map((s) => `<li
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.6, delay: 0.35, ease: EASE_OUT }}
-                  className="text-base md:text-lg text-white/45 max-w-xl leading-relaxed"
+                  className="text-lg md:text-xl text-white/55 max-w-2xl leading-relaxed"
                 >
-                  Five specialised AI agents — research, analyse, verify and generate
-                  comprehensive reports on any topic in minutes.
+                  Five specialised AI agents collaborate to research, analyse, verify and
+                  generate comprehensive reports on any topic — in minutes.
                 </motion.p>
 
                 {/* Feature chips */}
                 <motion.div
                   initial={{ opacity: 0, y: 16 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.6, delay: 0.45, ease: EASE_OUT }}
+                  transition={{ duration: 0.6, delay: 0.48, ease: EASE_OUT }}
                   className="flex flex-wrap justify-center gap-2"
                 >
                   <FeatureChip icon={Globe} label="Multi-source search" />
@@ -652,14 +674,16 @@ ${report.sources?.length ? `<h2>Sources</h2><ul>${report.sources.map((s) => `<li
                   <div className="p-6 md:p-8">
                     {/* Textarea */}
                     <div className="relative mb-5">
-                      <div className="p-px bg-white/[0.06] rounded-2xl border border-white/[0.06]">
+                      <div className="p-px rounded-2xl" style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.25) 0%, rgba(139,92,246,0.1) 50%, rgba(255,255,255,0.06) 100%)' }}>
                         <textarea
                           value={options.query}
                           onChange={(e) => setOptions({ ...options, query: e.target.value })}
                           onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) startResearch(); }}
                           placeholder="What are the major challenges of AI safety in 2026?"
-                          className="w-full bg-[#07070e] rounded-[calc(1rem-1px)] p-5 pb-16 text-base md:text-lg focus:outline-none transition-all min-h-[160px] resize-none placeholder:text-white/20 text-white/90"
+                          className="w-full rounded-[calc(1rem-1px)] p-5 pb-16 text-base md:text-lg focus:outline-none transition-all min-h-[180px] resize-none text-white/90"
+                          style={{ background: '#08080f', fontFamily: 'var(--font-sans)' }}
                         />
+                        <style>{`textarea::placeholder { color: rgba(240,240,248,0.22); }`}</style>
                       </div>
 
                       {/* Submit button — pinned bottom-right */}

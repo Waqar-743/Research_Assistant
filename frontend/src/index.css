@@ -6,6 +6,15 @@
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 }
 
+/* ── Force dark background from the root — prevents white flash ── */
+html,
+body,
+#root {
+  background-color: #030305;
+  color: #f0f0f8;
+  min-height: 100dvh;
+}
+
 /* ── Grain film overlay ── */
 @keyframes grain {
   0%,  100% { transform: translate(0, 0); }
