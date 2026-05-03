@@ -254,12 +254,15 @@ Once deployed, the backend runs entirely on Heroku — you do **not** run it loc
 2. Set `VITE_API_URL` to your Heroku app URL (e.g. `https://my-app.herokuapp.com`).
 3. Vercel auto-builds with `npm run build` on every push.
 
-### Public app links
+### Live links
 
-After deployment, publish these two links in your repo/project page so anyone can run it quickly:
+| Service | URL |
+|---------|-----|
+| **Frontend (GitHub Pages)** | https://waqar-743.github.io/Research_Assistant/ |
+| **Backend (Render)** | Set up on [Render](https://render.com) using `render.yaml` — see below |
 
-- Frontend URL: `https://your-frontend-domain.com`
-- Backend URL: `https://your-backend-domain.com`
+> The frontend is auto-deployed to GitHub Pages on every push to `main`.  
+> The backend deploys to Render — see [Backend Deployment on Render](#heroku-backend-deployment) for setup steps.
 
 ## Project Structure
 
