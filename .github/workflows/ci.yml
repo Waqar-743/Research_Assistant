@@ -22,6 +22,18 @@ jobs:
   backend-tests:
     name: Backend Tests
     runs-on: ubuntu-latest
+
+    services:
+      mongodb:
+        image: mongo:7
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --eval 'db.runCommand({ ping: 1 })'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     env:
       OPENROUTER_API_KEY: test-key
       MONGODB_URL: mongodb://localhost:27017
@@ -39,7 +51,7 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Run pytest
-        run: pytest
+        run: pytest --tb=short -q
 
 # ─────────────────────────────────────────────
 # JOB 2 – Frontend build + deploy to GitHub Pages
@@ -78,7 +90,7 @@ jobs:
         env:
           # Sub-path required for GitHub Pages (repo name with exact casing)
           VITE_BASE: /Research_Assistant/
-          # Backend URL – add this as a GitHub secret once you have a Render URL
+          # Backend URL – set this GitHub secret once you have a Render URL
           VITE_API_URL: ${{ secrets.VITE_API_URL }}
 
       # SPA: serve index.html for all unknown routes
@@ -109,4 +121,4 @@ jobs:
 
     steps:
       - name: Trigger Render deploy hook
-        run: curl -s -o /dev/null -w "%{http_code}" "${{ vars.RENDER_DEPLOY_HOOK }}"
+        run: curl -fsSL -o /dev/null -w "%{http_code}" "${{ vars.RENDER_DEPLOY_HOOK }}"
