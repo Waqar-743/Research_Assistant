@@ -13,6 +13,7 @@ export default defineConfig(({ mode }) => {
   const wsTarget = env.VITE_WS_URL || toWebSocketTarget(apiTarget);
 
   return {
+    base: env.VITE_BASE || '/',
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {

@@ -609,11 +609,23 @@ Respond with ONLY the JSON array:"""
         cleaned = _re.sub(r'^(json|JSON)\s*', '', cleaned)
         cleaned = cleaned.strip()
 
-        # Keep only the JSON array slice: first '[' to last ']'
+        # Keep only the JSON array or object slice
         first_bracket = cleaned.find('[')
-        last_bracket = cleaned.rfind(']')
-        if first_bracket != -1 and last_bracket != -1 and last_bracket > first_bracket:
-            cleaned = cleaned[first_bracket:last_bracket + 1]
+        first_brace = cleaned.find('{')
+
+        start_idx = -1
+        if first_bracket != -1 and first_brace != -1:
+            start_idx = min(first_bracket, first_brace)
+        elif first_bracket != -1:
+            start_idx = first_bracket
+        elif first_brace != -1:
+            start_idx = first_brace
+
+        if start_idx != -1:
+            end_char = ']' if cleaned[start_idx] == '[' else '}'
+            last_idx = cleaned.rfind(end_char)
+            if last_idx != -1 and last_idx > start_idx:
+                cleaned = cleaned[start_idx:last_idx + 1]
 
         return cleaned.strip()
 

@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: research-assistant-backend
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    plan: free
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: MONGODB_DATABASE
+        value: research_assistant_db
+      # Add these in the Render dashboard (Settings → Environment):
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: MONGODB_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: SENTRY_DSN
+        sync: false
