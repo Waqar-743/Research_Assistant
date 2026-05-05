@@ -99,9 +99,9 @@ class ResearchRepository:
         
         # Sorting
         if sort_by == "quality":
-            query = query.sort(-ResearchSession.quality_score)
+            query = query.sort("-quality_score")
         else:
-            query = query.sort(-ResearchSession.created_at)
+            query = query.sort("-created_at")
         
         return await query.skip(offset).limit(limit).to_list()
     
@@ -121,8 +121,8 @@ class ResearchRepository:
         if search_query:
             query = query.find({"query": {"$regex": search_query, "$options": "i"}})
         
-        return await query.sort(-ResearchSession.created_at).skip(skip).limit(limit).to_list()
-    
+        return await query.sort("-created_at").skip(skip).limit(limit).to_list()
+
     @staticmethod
     async def count_sessions(
         status_filter: Optional[ResearchStatus] = None,
@@ -130,13 +130,13 @@ class ResearchRepository:
     ) -> int:
         """Count research sessions with filters."""
         query = ResearchSession.find()
-        
+
         if status_filter:
             query = query.find(ResearchSession.status == status_filter)
-        
+
         if search_query:
             query = query.find({"query": {"$regex": search_query, "$options": "i"}})
-        
+
         return await query.count()
     
     @staticmethod

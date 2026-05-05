@@ -28,46 +28,48 @@ async def list_research_history(
     """
     try:
         skip = (page - 1) * limit
-        
+
         # Build filter
-        filter_dict = {}
+        status_filter = None
         if status:
             try:
-                filter_dict["status"] = ResearchStatus(status)
+                status_filter = ResearchStatus(status)
             except ValueError:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Invalid status: {status}"
-                )
-        
-        # Get sessions with pagination
-        sessions = await ResearchRepository.list_sessions(
-            skip=skip,
-            limit=limit,
-            status_filter=filter_dict.get("status"),
-            search_query=search
-        )
-        
-        # Get total count
-        total_count = await ResearchRepository.count_sessions(
-            status_filter=filter_dict.get("status"),
-            search_query=search
-        )
-        
-        # Format response
-        session_list = [
-            {
-                "session_id": s.research_id,
-                "query": s.query,
-                "status": s.status.value,
-                "progress": s.progress or 0,
-                "created_at": s.created_at.isoformat() if s.created_at else None,
-                "completed_at": s.completed_at.isoformat() if s.completed_at else None,
-                "research_mode": s.research_mode.value if s.research_mode else "auto"
-            }
-            for s in sessions
-        ]
-        
+                raise HTTPException(status_code=400, detail=f"Invalid status: {status}")
+
+        # Get sessions with pagination — gracefully degrade if DB unavailable
+        try:
+            sessions = await ResearchRepository.list_sessions(
+                skip=skip,
+                limit=limit,
+                status_filter=status_filter,
+                search_query=search
+            )
+            total_count = await ResearchRepository.count_sessions(
+                status_filter=status_filter,
+                search_query=search
+            )
+        except Exception as db_err:
+            logger.error(f"History DB query failed: {db_err}", exc_info=True)
+            sessions = []
+            total_count = 0
+
+        # Format response — skip any session that fails to serialize
+        session_list = []
+        for s in sessions:
+            try:
+                session_list.append({
+                    "session_id": s.research_id,
+                    "query": s.query,
+                    "status": s.status.value if s.status else "unknown",
+                    "progress": s.progress or 0,
+                    "created_at": s.created_at.isoformat() if s.created_at else None,
+                    "completed_at": s.completed_at.isoformat() if s.completed_at else None,
+                    "research_mode": s.research_mode.value if s.research_mode else "auto",
+                })
+            except Exception as serial_err:
+                logger.warning(f"Skipping malformed session: {serial_err}")
+
         return APIResponse(
             status=200,
             message="History retrieved successfully",
@@ -77,19 +79,16 @@ async def list_research_history(
                     "page": page,
                     "limit": limit,
                     "total": total_count,
-                    "pages": (total_count + limit - 1) // limit
-                }
-            }
+                    "pages": max(1, (total_count + limit - 1) // limit),
+                },
+            },
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to list history: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to list history: {str(e)}"
-        )
+        logger.error(f"Failed to list history: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to list history: {str(e)}")
 
 
 @router.get("/{session_id}", response_model=APIResponse)

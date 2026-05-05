@@ -823,7 +823,7 @@ export default function App() {
           NOTE: No opacity-0 initial states on view wrappers.
           All content renders visible immediately.
       ══════════════════════════════════════════════════ */}
-      <main className="pt-24 pb-20 px-4 max-w-6xl mx-auto">
+      <main className="relative pt-24 pb-20 px-4 max-w-6xl mx-auto">
 
         {/* ─── LANDING ─── */}
         {view === 'landing' && (

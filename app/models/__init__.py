@@ -42,6 +42,7 @@ class CitationStyleEnum(str, Enum):
     APA = "APA"
     MLA = "MLA"
     CHICAGO = "Chicago"
+    HARVARD = "Harvard"
 
 
 class ResearchModeEnum(str, Enum):

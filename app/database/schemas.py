@@ -58,6 +58,7 @@ class CitationStyle(str, Enum):
     APA = "APA"
     MLA = "MLA"
     CHICAGO = "Chicago"
+    HARVARD = "Harvard"
 
 
 class ResearchMode(str, Enum):
@@ -245,7 +246,7 @@ class ResearchSession(Document):
     research_id: Indexed(str, unique=True) = Field(
         default_factory=lambda: f"res_{uuid.uuid4().hex[:12]}"
     )
-    user_id: Indexed(str)
+    user_id: Indexed(str) = Field(default="anonymous")
     
     # Query and configuration
     query: str
