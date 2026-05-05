@@ -63,6 +63,9 @@ jobs:
     needs: backend-tests
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
 
+    env:
+      RENDER_BACKEND_URL: https://research-assistant-ghnh.onrender.com
+
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -89,10 +92,8 @@ jobs:
       - name: Build
         run: npm run build
         env:
-          # Sub-path required for GitHub Pages (repo name exact casing)
           VITE_BASE: /Research_Assistant/
-          # Render backend URL — set as a GitHub Actions secret
-          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+          VITE_API_URL: https://research-assistant-ghnh.onrender.com
 
       # SPA: copy index.html → 404.html so deep links work on GitHub Pages
       - name: Add SPA 404 fallback
@@ -108,6 +109,11 @@ jobs:
         id: deployment
         uses: actions/deploy-pages@v4
 
+      - name: Publish live links
+        run: |
+          echo "Frontend: ${{ steps.deployment.outputs.page_url }}" >> $GITHUB_STEP_SUMMARY
+          echo "Backend: $RENDER_BACKEND_URL" >> $GITHUB_STEP_SUMMARY
+
 # ─────────────────────────────────────────────
 # JOB 3 – Trigger Render backend redeploy
 # ─────────────────────────────────────────────
@@ -116,6 +122,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: backend-tests
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    env:
+      RENDER_BACKEND_URL: https://research-assistant-ghnh.onrender.com
 
     steps:
       - name: Trigger Render deploy hook
@@ -127,9 +136,13 @@ jobs:
         run: |
           if [ -z "$RENDER_HOOK" ]; then
             echo "RENDER_DEPLOY_HOOK variable not set — skipping Render trigger."
-            echo "Add it in: GitHub repo → Settings → Secrets and variables → Actions → Variables"
+            echo "Add it in: GitHub repo -> Settings -> Secrets and variables -> Actions -> Secrets"
             exit 0
           fi
           echo "Triggering Render deploy..."
           STATUS=$(curl -fsSL -o /dev/null -w "%{http_code}" "$RENDER_HOOK")
           echo "Render deploy hook HTTP status: $STATUS"
+
+      - name: Publish backend live link
+        run: |
+          echo "Backend: $RENDER_BACKEND_URL" >> $GITHUB_STEP_SUMMARY
