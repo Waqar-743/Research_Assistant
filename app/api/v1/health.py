@@ -7,7 +7,7 @@ from fastapi import APIRouter
 from datetime import datetime
 
 from app.models import APIResponse
-from app.database.connection import check_database_connection
+from app.database.connection import check_database_connection, db as _mongo_db
 from app.config import settings
 from app.utils.logging import logger
 
@@ -83,15 +83,19 @@ async def readiness_check():
 @router.get("/live", response_model=APIResponse)
 async def liveness_check():
     """
-    Liveness check - basic check that the service is running.
+    Liveness check — basic check that the service is running.
+    Also reports whether the database connection is established so the
+    frontend can show a meaningful status without a separate call.
     """
+    db_connected = _mongo_db.database is not None
     return APIResponse(
         status=200,
         message="Service is alive",
         data={
             "alive": True,
-            "timestamp": datetime.utcnow().isoformat()
-        }
+            "db_connected": db_connected,
+            "timestamp": datetime.utcnow().isoformat(),
+        },
     )
 
 

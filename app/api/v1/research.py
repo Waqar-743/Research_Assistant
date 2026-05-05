@@ -26,6 +26,7 @@ from app.models import (
 )
 from app.database.schemas import ResearchSession, ResearchStatus, ResearchMode
 from app.database.repositories import ResearchRepository
+from app.database.connection import db as _mongo_db
 from app.database.document_schemas import ConversationMessage, ConversationRole
 from app.database.document_repository import (
     DocumentRepository,
@@ -167,11 +168,22 @@ async def start_research(
     Progress updates are delivered via WebSocket connection.
     """
     try:
+        # Guard: fail fast with a clear message if MongoDB is not connected
+        if _mongo_db.database is None:
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    "Database not available. "
+                    "Set MONGODB_URL in the Render environment variables dashboard, "
+                    "then redeploy the service."
+                ),
+            )
+
         # Generate session ID
         session_id = str(uuid.uuid4())
-        
+
         logger.info(f"Starting research session {session_id}: {request.query}")
-        
+
         # Create session in database
         session = ResearchSession(
             research_id=session_id,
@@ -212,11 +224,15 @@ async def start_research(
             }
         )
         
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Failed to start research: {e}")
+        error_name = type(e).__name__
+        error_msg = str(e) or repr(e) or "(no message — check server logs)"
+        logger.error(f"Failed to start research [{error_name}]: {error_msg}", exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to start research: {str(e)}"
+            detail=f"Failed to start research [{error_name}]: {error_msg}",
         )
 
 

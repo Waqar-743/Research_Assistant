@@ -56,8 +56,9 @@ async function apiFetch<T = unknown>(
 
 export async function checkHealth(): Promise<boolean> {
   try {
-    await apiFetch('/health/live');
-    return true;
+    const data = await apiFetch<{ alive: boolean; db_connected: boolean }>('/health/live');
+    // true only when the process is alive AND MongoDB is connected
+    return Boolean(data?.alive) && Boolean(data?.db_connected);
   } catch {
     return false;
   }

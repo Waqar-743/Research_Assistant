@@ -857,13 +857,16 @@ export default function App() {
               </div>
             </section>
 
-            {/* Backend offline banner */}
+            {/* Backend offline / DB not ready banner */}
             {backendOnline === false && (
               <div className="mb-6 flex items-start gap-3 px-5 py-4 bg-amber-500/[0.08] border border-amber-500/25 rounded-2xl text-amber-300 text-sm">
                 <AlertCircle size={16} strokeWidth={1.5} className="shrink-0 mt-0.5" />
                 <div className="flex-1">
-                  <p className="font-semibold">Backend is starting up (Render free tier)</p>
-                  <p className="text-amber-300/70 text-xs mt-0.5">The server wakes up on first request — it may take 30–60 seconds. Please wait then retry.</p>
+                  <p className="font-semibold">Backend not ready</p>
+                  <p className="text-amber-300/70 text-xs mt-0.5">
+                    The Render server may be waking from sleep (30–60 s), or MongoDB isn't configured yet.
+                    Check that <span className="font-mono">MONGODB_URL</span> and <span className="font-mono">OPENROUTER_API_KEY</span> are set in the Render dashboard.
+                  </p>
                 </div>
                 <button onClick={() => researchService.checkHealth().then(setBackendOnline)} className="shrink-0 p-1.5 hover:text-white transition-colors">
                   <RefreshCw size={14} strokeWidth={1.5} />
