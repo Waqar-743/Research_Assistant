@@ -248,7 +248,14 @@ GitHub Actions now runs on every push and pull request:
 
 Once deployed, the backend runs entirely on Heroku — you do **not** run it locally in production. Local execution is only for development.
 
-### Vercel Frontend Deployment
+### GitHub Actions CI/CD Deployments
+
+The repository includes GitHub Actions workflows to automatically deploy the frontend to **GitHub Pages** and the backend to **Heroku**.
+
+1. **Frontend**: Pushes to `main` branch will automatically build and deploy the React app to GitHub Pages. Set `VITE_API_URL` as a repository secret.
+2. **Backend**: Pushes to `main` branch will deploy the Docker image to Heroku. You need to configure `HEROKU_API_KEY`, `HEROKU_APP_NAME`, and `HEROKU_EMAIL` as repository secrets.
+
+### Vercel Frontend Deployment (Alternative)
 
 1. Import the repo into Vercel; set **Root Directory** to `frontend`.
 2. Set `VITE_API_URL` to your Heroku app URL (e.g. `https://my-app.herokuapp.com`).
