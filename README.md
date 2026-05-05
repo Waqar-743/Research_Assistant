@@ -89,6 +89,7 @@ pip install -r requirements.txt
 
 ```bash
 copy .env.example .env
+copy frontend\.env.example frontend\.env.local
 ```
 
 Required variables:
@@ -125,6 +126,20 @@ npm run dev
 ```
 
 Frontend runs at `http://localhost:5500`.
+
+### Local links
+
+- Frontend: `http://localhost:5500`
+- Backend API: `http://localhost:8000`
+- Backend docs: `http://localhost:8000/docs`
+
+If your backend is hosted elsewhere, set `frontend/.env.local`:
+
+```bash
+VITE_API_URL=https://your-backend-domain.com
+# Optional when websocket host differs from API host
+# VITE_WS_URL=wss://your-backend-domain.com
+```
 
 ## Docker
 
@@ -195,6 +210,13 @@ pytest                   # run all 18 tests
 pytest tests/ -v         # verbose output
 ```
 
+## CI Pipeline
+
+GitHub Actions now runs on every push and pull request:
+
+- **Backend Tests**: installs Python dependencies and runs `pytest`
+- **Frontend Build**: runs `npm ci`, `npm run lint`, and `npm run build` in `frontend/`
+
 ## Deployment
 
 ### Recommended Production Stack
@@ -239,6 +261,16 @@ The repository includes GitHub Actions workflows to automatically deploy the fro
 2. Set `VITE_API_URL` to your Heroku app URL (e.g. `https://my-app.herokuapp.com`).
 3. Vercel auto-builds with `npm run build` on every push.
 
+### Live links
+
+| Service | URL |
+|---------|-----|
+| **Frontend (GitHub Pages)** | https://waqar-743.github.io/Research_Assistant/ |
+| **Backend (Render)** | Set up on [Render](https://render.com) using `render.yaml` — see below |
+
+> The frontend is auto-deployed to GitHub Pages on every push to `main`.  
+> The backend deploys to Render — see [Backend Deployment on Render](#heroku-backend-deployment) for setup steps.
+
 ## Project Structure
 
 ```text
@@ -267,6 +299,36 @@ Research-Assistant/
 ├── Dockerfile
 └── requirements.txt
 ```
+
+## Report Persistence — How It Works
+
+The report follows a two-track persistence strategy so it is never silently lost:
+
+1. **Primary path** — `ReportGenerator` produces a report dict; `ResearchService._save_research_results()` inserts it into the `reports` MongoDB collection as a `Report` document.  `GET /research/{id}/results` reads from this collection via `ReportRepository.get_by_research()`.
+
+2. **Fallback path** — The orchestrator always writes the complete report dict into `ResearchSession.final_report` (a plain `Dict` field on the session document).  If the `Report` collection document is missing (e.g. unique-key collision on a re-run), `GET /research/{id}/results` falls back to building the `ReportResponse` directly from `session.final_report`.
+
+The `Report` collection has `research_id: Indexed(str, unique=True)`.  A re-run of the same session therefore hits a duplicate-key error on insert; the service now detects this and upserts the existing document rather than silently swallowing the failure.
+
+### Pipeline data flow
+
+```
+ResearchSession.pipeline_data (MongoDB Dict)
+    ├── "researcher_output"    — saved atomically after Researcher finishes
+    ├── "analyst_output"       — saved atomically after Analyst finishes
+    └── "validated_findings"   — saved atomically after FactChecker finishes
+
+save_pipeline_data() uses dot-notation $set  →  no read-modify-write race
+```
+
+## Troubleshooting
+
+| Symptom | Likely Cause | Fix |
+|---------|-------------|-----|
+| Empty report returned | `Report` insert failed silently on re-run | Upgrade to latest code; upsert logic now handles it |
+| `report: null` in API response | `Report` collection missing, no fallback | Upgrade to latest code; fallback reads `session.final_report` |
+| Hybrid research 422 error | Wrong field names (`query` vs `search_query`) | Fixed in `start_hybrid_research` endpoint |
+| Pipeline data overwritten | Concurrent `save_pipeline_data` race | Fixed to atomic `$set` dot-notation |
 
 ## Contributing
 

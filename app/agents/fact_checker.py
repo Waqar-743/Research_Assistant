@@ -13,7 +13,7 @@ from app.agents.base_agent import BaseAgent, AgentStatus
 from app.tools.validation_tools import ValidationTools
 from app.config import settings
 from app.utils.logging import logger
-from app.database.repositories import SourceRepository, ResearchRepository
+from app.database.repositories import SourceRepository, FindingRepository, ResearchRepository
 
 
 class FactCheckerAgent(BaseAgent):
@@ -84,13 +84,22 @@ Your verification must be thorough and honest."""
             # Organized findings from pipeline_data
             findings = await ResearchRepository.get_pipeline_data(session_id, "organized_findings") or []
             insights = await ResearchRepository.get_pipeline_data(session_id, "key_insights") or []
+
+            # Fallback: load raw findings from FindingRepository if pipeline_data is empty
+            if not findings:
+                logger.warning(
+                    f"[FACT_CHECKER] organized_findings empty in pipeline_data for session {session_id}, "
+                    f"loading raw findings from FindingRepository"
+                )
+                finding_docs = await FindingRepository.get_by_research(session_id)
+                findings = [self._finding_doc_to_dict(f) for f in finding_docs]
         else:
             # Backward compat / tests
             sources = context.get("sources", [])
             findings = context.get("organized_findings", [])
             insights = context.get("key_insights", [])
 
-        # Fallback chain
+        # Fallback chain (context may carry raw_findings from orchestrator)
         if not findings:
             findings = context.get("consolidated_findings", [])
         if not findings:
@@ -319,7 +328,7 @@ Your verification must be thorough and honest."""
         else:
             return "Significant bias detected. Findings should be interpreted with caution."
 
-    # ── Phase 1 helper ────────────────────────────────────────────
+    # ── Phase 1 helpers ───────────────────────────────────────────
     @staticmethod
     def _source_doc_to_dict(doc) -> Dict[str, Any]:
         """Convert a Source Beanie document to the dict format agents expect."""
@@ -333,6 +342,21 @@ Your verification must be thorough and honest."""
             "published_at": str(doc.published_at) if doc.published_at else "",
             "credibility_score": doc.credibility_score,
             **(doc.metadata or {}),
+        }
+
+    @staticmethod
+    def _finding_doc_to_dict(doc) -> Dict[str, Any]:
+        """Convert a Finding Beanie document to the dict format agents expect."""
+        meta = doc.metadata or {}
+        return {
+            "content": doc.content,
+            "title": doc.title,
+            "type": doc.finding_type.value if hasattr(doc.finding_type, "value") else str(doc.finding_type or "insight"),
+            "source_refs": meta.get("source_refs", ""),
+            "resolved_sources": meta.get("resolved_sources", []),
+            "preliminary_credibility": meta.get("preliminary_credibility", "medium"),
+            "confidence_score": doc.confidence_score,
+            "verified": doc.verified,
         }
     
     def _calculate_confidence(

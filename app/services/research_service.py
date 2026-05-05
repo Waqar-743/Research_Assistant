@@ -71,6 +71,8 @@ class ResearchService:
         
         This is called as a background task from the API endpoint.
         """
+        from app.database.schemas import ResearchSession as _RS
+
         logger.info(f"Starting research execution for session {session_id}")
         
         # Update session status
@@ -174,17 +176,18 @@ class ResearchService:
                 # Save results to database
                 await self._save_research_results(session_id, results)
                 
-                # Update session as completed
-                session = await ResearchRepository.get_by_session_id(session_id)
-                if session:
-                    session.status = ResearchStatus.COMPLETED
-                    session.progress = 100
-                    session.completed_at = datetime.utcnow()
-                    session.final_report = results.get("report", {})
-                    session.sources_count = results.get("sources_count", {})
-                    session.findings_count = len(results.get("findings", []))
-                    session.confidence_summary = results.get("confidence_summary", {})
-                    await session.save()
+                # Update session as completed using atomic $set
+                await _RS.find_one(
+                    _RS.research_id == session_id
+                ).update({"$set": {
+                    "status": ResearchStatus.COMPLETED,
+                    "progress": 100,
+                    "completed_at": datetime.utcnow(),
+                    "final_report": results.get("report", {}),
+                    "sources_count": results.get("sources_count", {}),
+                    "findings_count": len(results.get("findings", [])),
+                    "confidence_summary": results.get("confidence_summary", {}),
+                }})
                 
                 # Send completion notification
                 await send_research_complete(session_id, results)
@@ -192,12 +195,13 @@ class ResearchService:
                 logger.info(f"Research completed successfully for session {session_id}")
                 
             elif results.get("status") == "failed":
-                # Update session as failed
-                session = await ResearchRepository.get_by_session_id(session_id)
-                if session:
-                    session.status = ResearchStatus.FAILED
-                    session.error_message = results.get("error", "Unknown error")
-                    await session.save()
+                # Update session as failed using atomic $set
+                await _RS.find_one(
+                    _RS.research_id == session_id
+                ).update({"$set": {
+                    "status": ResearchStatus.FAILED,
+                    "error_message": results.get("error", "Unknown error"),
+                }})
                 
                 # Send error notification
                 await send_research_error(
@@ -209,22 +213,27 @@ class ResearchService:
                 logger.error(f"Research failed for session {session_id}: {results.get('error')}")
             
             elif results.get("status") == "cancelled":
-                session = await ResearchRepository.get_by_session_id(session_id)
-                if session:
-                    session.status = ResearchStatus.CANCELLED
-                    await session.save()
+                await _RS.find_one(
+                    _RS.research_id == session_id
+                ).update({"$set": {
+                    "status": ResearchStatus.CANCELLED,
+                }})
                 
                 logger.info(f"Research cancelled for session {session_id}")
             
         except Exception as e:
             logger.error(f"Research execution error: {e}")
             
-            # Update session as failed
-            session = await ResearchRepository.get_by_session_id(session_id)
-            if session:
-                session.status = ResearchStatus.FAILED
-                session.error_message = str(e)
-                await session.save()
+            # Update session as failed using atomic $set
+            try:
+                await _RS.find_one(
+                    _RS.research_id == session_id
+                ).update({"$set": {
+                    "status": ResearchStatus.FAILED,
+                    "error_message": str(e),
+                }})
+            except Exception:
+                logger.warning("Failed to update session status on error")
             
             await send_research_error(session_id, str(e))
             
@@ -242,11 +251,12 @@ class ResearchService:
         output: Optional[str],
         error: Optional[str]
     ):
-        """Update session progress in database."""
+        """Update session progress in database using atomic $set to avoid overwriting pipeline_data."""
         try:
+            from app.database.schemas import ResearchSession
+
             session = await ResearchRepository.get_by_session_id(session_id)
             if session:
-                # Update agent status
                 if session.agent_statuses is None:
                     session.agent_statuses = {}
 
@@ -257,11 +267,7 @@ class ResearchService:
                     "error": error,
                     "updated_at": datetime.utcnow().isoformat()
                 }
-                
-                # Update current phase
-                session.current_phase = agent_name
-                
-                # Calculate overall progress
+
                 agent_weights = {
                     "user_proxy": 10,
                     "researcher": 30,
@@ -269,7 +275,7 @@ class ResearchService:
                     "fact_checker": 20,
                     "report_generator": 15
                 }
-                
+
                 overall = 0
                 for agent, weight in agent_weights.items():
                     agent_status = session.agent_statuses.get(agent, {})
@@ -277,12 +283,21 @@ class ResearchService:
                         overall += weight
                     elif agent_status.get("status") == "in_progress":
                         overall += int(weight * (agent_status.get("progress", 0) / 100))
-                
-                session.progress = min(overall, 100)
-                session.updated_at = datetime.utcnow()
-                
-                await session.save()
-                
+
+                overall_progress = min(overall, 100)
+
+                # Use atomic $set instead of session.save() to avoid
+                # overwriting pipeline_data that may have been updated
+                # concurrently by save_pipeline_data().
+                await ResearchSession.find_one(
+                    ResearchSession.research_id == session_id
+                ).update({"$set": {
+                    "agent_statuses": session.agent_statuses,
+                    "current_phase": agent_name,
+                    "progress": overall_progress,
+                    "updated_at": datetime.utcnow(),
+                }})
+
         except Exception as e:
             logger.warning(f"Failed to update session progress: {e}")
     
@@ -299,26 +314,53 @@ class ResearchService:
         persists the **report** (to avoid double-inserting sources
         and findings).
         """
+        report_data = results.get("report", {})
+        if not report_data:
+            logger.warning(f"No report_data to save for session {session_id}")
+            return
+
         try:
-            # Save report (the one thing not yet persisted by orchestrator)
-            report_data = results.get("report", {})
-            if report_data:
-                report = Report(
-                    research_id=session_id,
-                    title=report_data.get("title", ""),
-                    summary=report_data.get("summary", ""),
-                    markdown_content=report_data.get("markdown_content", ""),
-                    html_content=report_data.get("html_content", ""),
-                    sections=report_data.get("sections", []),
-                    citation_style=report_data.get("citation_style", "APA"),
-                    quality_score=report_data.get("quality_score", 0),
-                    generated_at=datetime.utcnow()
+            report = Report(
+                research_id=session_id,
+                title=report_data.get("title") or "",
+                summary=report_data.get("summary") or "",
+                markdown_content=report_data.get("markdown_content") or "",
+                html_content=report_data.get("html_content") or None,
+                sections=report_data.get("sections") or [],
+                citation_style=report_data.get("citation_style") or "APA",
+                quality_score=float(report_data.get("quality_score") or 0),
+                generated_at=datetime.utcnow()
+            )
+            await report.insert()
+            logger.info(f"Saved report for session {session_id}")
+
+        except Exception as insert_err:
+            # Insert failed (e.g. duplicate key on re-run). Attempt upsert.
+            logger.warning(
+                f"Report insert failed for session {session_id} ({insert_err}), "
+                f"attempting update of existing report..."
+            )
+            try:
+                existing = await Report.find_one(Report.research_id == session_id)
+                if existing:
+                    await existing.update({"$set": {
+                        "title": report_data.get("title") or "",
+                        "summary": report_data.get("summary") or "",
+                        "markdown_content": report_data.get("markdown_content") or "",
+                        "html_content": report_data.get("html_content") or None,
+                        "sections": report_data.get("sections") or [],
+                        "quality_score": float(report_data.get("quality_score") or 0),
+                    }})
+                    logger.info(f"Updated existing report for session {session_id}")
+                else:
+                    logger.error(
+                        f"Report could not be saved for session {session_id}: "
+                        f"insert failed and no existing document found. Error: {insert_err}"
+                    )
+            except Exception as upsert_err:
+                logger.error(
+                    f"Failed to save/update report for session {session_id}: {upsert_err}"
                 )
-                await report.insert()
-                logger.info(f"Saved report for session {session_id}")
-                
-        except Exception as e:
-            logger.error(f"Failed to save research results: {e}")
     
     async def cancel_research(self, session_id: str):
         """Cancel an in-progress research session."""

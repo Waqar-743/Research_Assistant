@@ -4,7 +4,7 @@ Pydantic Models for API Request/Response Validation.
 
 from datetime import datetime
 from typing import List, Optional, Dict, Any
-from pydantic import BaseModel, Field, EmailStr, validator
+from pydantic import BaseModel, Field, EmailStr, validator, AliasChoices
 from enum import Enum
 
 
@@ -248,18 +248,18 @@ class ReportSectionResponse(BaseModel):
 
 class ReportResponse(BaseModel):
     """Response model for a report."""
-    
+
     report_id: str
     title: str
     summary: Optional[str] = None
     markdown_content: str
     html_content: Optional[str] = None
-    sections: List[Dict[str, Any]]
-    citations: List[Dict[str, Any]]
-    citation_style: CitationStyleEnum
-    quality_score: float = Field(ge=0.0, le=5.0)
+    sections: List[Dict[str, Any]] = Field(default_factory=list)
+    citations: List[Dict[str, Any]] = Field(default_factory=list)
+    citation_style: CitationStyleEnum = CitationStyleEnum.APA
+    quality_score: float = Field(default=0.0, ge=0.0, le=5.0)
     generated_at: datetime
-    
+
     class Config:
         from_attributes = True
 
@@ -670,15 +670,17 @@ class HybridResearchRequest(BaseModel):
 class ChatMessageRequest(BaseModel):
     """Request model for sending a chat message."""
     
-    content: str = Field(
+    message: str = Field(
         ...,
         min_length=1,
         max_length=4000,
-        description="Message content"
+        description="Message content",
+        validation_alias=AliasChoices("message", "content")
     )
-    document_context_ids: Optional[List[str]] = Field(
+    document_ids: Optional[List[str]] = Field(
         default=None,
-        description="Document IDs to use as context"
+        description="Document IDs to use as context",
+        validation_alias=AliasChoices("document_ids", "document_context_ids")
     )
 
 

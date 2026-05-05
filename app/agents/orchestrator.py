@@ -11,6 +11,7 @@ from typing import Dict, Any, Optional, Callable, List
 from datetime import datetime
 from enum import Enum
 import asyncio
+import uuid
 
 import sentry_sdk
 
@@ -264,9 +265,12 @@ class AgentOrchestrator:
                     logger.info(f"Retry persisted {source_count} sources")
                 else:
                     logger.error("Retry also failed — continuing with 0 sources")
-            # Only lightweight refs travel in context from now on
+            # Lightweight refs travel in context; also keep raw_findings
+            # as fallback data for downstream agents when DB loading fails.
             final_context["session_id"] = session_id
             final_context["sources_count"] = researcher_result.get("sources_count", {})
+            final_context["raw_findings"] = researcher_result.get("raw_findings", [])
+            final_context["sources"] = researcher_result.get("sources", [])
             # ──────────────────────────────────────────────────────────
             
             # Supervised checkpoint after research
@@ -513,10 +517,12 @@ class AgentOrchestrator:
             if source_dicts:
                 await SourceRepository.create_many(source_dicts)
 
-            # Bulk-insert finding documents
+            # Build finding documents
             finding_dicts = []
             for f in raw_findings:
                 content = f.get("content", "")
+                if not content:
+                    continue
                 finding_dicts.append({
                     "research_id": session_id,
                     "title": content[:80] if content else "Finding",
@@ -530,7 +536,18 @@ class AgentOrchestrator:
                     },
                 })
             if finding_dicts:
-                await FindingRepository.create_many(finding_dicts)
+                try:
+                    await FindingRepository.create_many(finding_dicts)
+                except Exception as bulk_err:
+                    # Bulk insert failed (e.g. schema validation) — insert one by one
+                    logger.warning(
+                        f"Bulk finding insert failed ({bulk_err}), falling back to per-item insert"
+                    )
+                    for fd in finding_dicts:
+                        try:
+                            await FindingRepository.create(fd)
+                        except Exception as single_err:
+                            logger.warning(f"Single finding insert failed: {single_err}")
 
             persisted_source_count = await SourceRepository.count_by_research(session_id)
             persisted_finding_count = await FindingRepository.count_by_research(session_id)
@@ -576,6 +593,24 @@ class AgentOrchestrator:
                 value = result.get(key, [])
                 if value:
                     await ResearchRepository.save_pipeline_data(session_id, key, value)
+            organized_findings = result.get("organized_findings", [])
+            if organized_findings:
+                await FindingRepository.replace_for_research(
+                    session_id,
+                    [
+                        self._build_finding_document(
+                            session_id=session_id,
+                            finding=finding,
+                            agent_name="analyst"
+                        )
+                        for finding in organized_findings
+                        if finding.get("content") or finding.get("title")
+                    ]
+                )
+                await ResearchRepository.update_metrics(
+                    session_id,
+                    total_findings=len(organized_findings)
+                )
             logger.info("Persisted analyst output to pipeline_data")
         except Exception as e:
             logger.error(f"Failed to persist analyst output: {e}")
@@ -590,6 +625,24 @@ class AgentOrchestrator:
                 value = result.get(key)
                 if value:
                     await ResearchRepository.save_pipeline_data(session_id, key, value)
+            validated_findings = result.get("validated_findings", [])
+            if validated_findings:
+                await FindingRepository.replace_for_research(
+                    session_id,
+                    [
+                        self._build_finding_document(
+                            session_id=session_id,
+                            finding=finding,
+                            agent_name="fact_checker"
+                        )
+                        for finding in validated_findings
+                        if finding.get("content") or finding.get("title")
+                    ]
+                )
+                await ResearchRepository.update_metrics(
+                    session_id,
+                    total_findings=len(validated_findings)
+                )
             logger.info("Persisted fact-checker output to pipeline_data")
         except Exception as e:
             logger.error(f"Failed to persist fact-checker output: {e}")
@@ -607,12 +660,86 @@ class AgentOrchestrator:
         }
         return mapping.get((source_type or "").lower(), "other")
 
+    @staticmethod
+    def _confidence_to_score(confidence: Any) -> float:
+        if isinstance(confidence, (int, float)):
+            return max(0.0, min(float(confidence), 1.0))
+
+        mapping = {
+            "high": 0.85,
+            "medium": 0.6,
+            "low": 0.35,
+        }
+        return mapping.get(str(confidence or "").lower(), 0.5)
+
+    def _build_finding_document(
+        self,
+        session_id: str,
+        finding: Dict[str, Any],
+        agent_name: str
+    ) -> Dict[str, Any]:
+        content = (finding.get("content") or finding.get("title") or "").strip()
+        title = (finding.get("title") or content[:80] or "Finding").strip()
+
+        supporting_sources = finding.get("supporting_sources", [])
+        if not supporting_sources:
+            supporting_sources = []
+            for source in finding.get("resolved_sources", []) or []:
+                if isinstance(source, dict) and source.get("url"):
+                    supporting_sources.append(source["url"])
+                elif isinstance(source, str) and source:
+                    supporting_sources.append(source)
+
+        raw_type = str(
+            finding.get("finding_type")
+            or finding.get("type")
+            or "insight"
+        ).lower()
+        finding_type = raw_type if raw_type in {"insight", "statistic", "definition", "claim", "fact"} else "insight"
+
+        confidence_score = finding.get("confidence_score")
+        if confidence_score is None:
+            confidence_score = self._confidence_to_score(
+                finding.get("confidence") or finding.get("preliminary_credibility")
+            )
+
+        return {
+            "finding_id": finding.get("finding_id") or finding.get("id") or f"fd_{uuid.uuid4().hex[:12]}",
+            "research_id": session_id,
+            "title": title,
+            "content": content,
+            "finding_type": finding_type,
+            "confidence_score": max(0.0, min(float(confidence_score), 1.0)),
+            "verified": bool(finding.get("verified", False)),
+            "supporting_sources": supporting_sources,
+            "contradicting_sources": finding.get("contradicting_sources", []),
+            "agent_generated_by": finding.get("agent_generated_by", agent_name),
+            "metadata": {
+                "source_refs": finding.get("source_refs", []),
+                "resolved_sources": finding.get("resolved_sources", []),
+                "related_patterns": finding.get("related_patterns", []),
+                "verification_summary": finding.get("verification_summary", ""),
+                "verification_verdict": finding.get("verification_verdict", ""),
+            },
+        }
+
     def _build_final_response(self) -> Dict[str, Any]:
         """Build the final response with all results."""
         
         report_data = self.results.get("report_generator", {}).get("report", {})
         fact_check_data = self.results.get("fact_checker", {})
-        
+        analyst_data = self.results.get("analyst", {})
+        researcher_data = self.results.get("researcher", {})
+
+        # Use validated findings if available, otherwise fall back through the chain
+        findings = fact_check_data.get("validated_findings", [])
+        if not findings:
+            findings = analyst_data.get("organized_findings", [])
+        if not findings:
+            findings = analyst_data.get("consolidated_findings", [])
+        if not findings:
+            findings = researcher_data.get("raw_findings", [])
+
         return {
             "status": "completed",
             "session_id": self.session_id,
@@ -629,14 +756,14 @@ class AgentOrchestrator:
             },
             
             # Research data
-            "sources": self.results.get("researcher", {}).get("sources", []),
-            "sources_count": self.results.get("researcher", {}).get("sources_count", {}),
+            "sources": researcher_data.get("sources", []),
+            "sources_count": researcher_data.get("sources_count", {}),
             
             # Analysis data
-            "findings": fact_check_data.get("validated_findings", []),
-            "patterns": self.results.get("analyst", {}).get("patterns", []),
-            "key_insights": self.results.get("analyst", {}).get("key_insights", []),
-            "contradictions": self.results.get("analyst", {}).get("contradictions", []),
+            "findings": findings,
+            "patterns": analyst_data.get("patterns", []),
+            "key_insights": analyst_data.get("key_insights", []),
+            "contradictions": analyst_data.get("contradictions", []),
             
             # Confidence data
             "confidence_summary": fact_check_data.get("confidence_summary", {}),

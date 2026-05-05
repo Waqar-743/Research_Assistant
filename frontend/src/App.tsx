@@ -1,62 +1,34 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  Search,
-  ChevronDown,
-  ChevronUp,
-  User,
-  Database,
-  Cpu,
-  ShieldCheck,
-  FileText,
-  Loader2,
-  History,
-  ExternalLink,
-  Download,
-  Plus,
-  CheckCircle2,
-  Terminal,
-  AlertCircle,
-  RefreshCw,
+  Search, ChevronDown, User, Database, Cpu, ShieldCheck,
+  FileText, Loader2, History, ExternalLink, Download, Plus,
+  CheckCircle2, Terminal, AlertCircle, RefreshCw, ArrowUpRight,
+  Sparkles, BookOpen, Menu, X, Globe, Zap,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Markdown from 'react-markdown';
 import {
-  ResearchOptions,
-  LogEntry,
-  AgentStatus,
-  AgentState,
-  ResearchHistory,
-  ResearchReport,
-  ReportSource,
-  ReportSection,
-  WSMessage,
+  ResearchOptions, LogEntry, AgentStatus, AgentState,
+  ResearchHistory, ResearchReport, ReportSource, ReportSection, WSMessage,
 } from './types';
 import { researchService } from './services/researchService';
 
-/* ------------------------------------------------------------------ */
-/*  Map backend results → frontend ResearchReport                      */
-/* ------------------------------------------------------------------ */
-
-function mapResultsToReport(
-  res: Record<string, unknown>,
-): ResearchReport | undefined {
+/* ─────────────────────────────────────────────────────────────
+   Backend → frontend report mapper (unchanged logic)
+───────────────────────────────────────────────────────────── */
+function mapResultsToReport(res: Record<string, unknown>): ResearchReport | undefined {
   const report = res.report as Record<string, unknown> | undefined;
   if (!report) return undefined;
 
-  const backendSources =
-    (res.sources as Array<Record<string, unknown>>) ?? [];
-  const backendFindings =
-    (res.findings as Array<Record<string, unknown>>) ?? [];
+  const backendSources = (res.sources as Array<Record<string, unknown>>) ?? [];
+  const backendFindings = (res.findings as Array<Record<string, unknown>>) ?? [];
 
-  // Sections: backend uses "title", frontend uses "heading"
-  const rawSections =
-    (report.sections as Array<Record<string, unknown>>) ?? [];
+  const rawSections = (report.sections as Array<Record<string, unknown>>) ?? [];
   const sections: ReportSection[] = rawSections.map((s) => ({
     heading: (s.title as string) ?? (s.heading as string) ?? '',
     content: (s.content as string) ?? '',
   }));
 
-  // Sources: map SourceResponse → ReportSource
   const sources: ReportSource[] = backendSources.map((s) => ({
     title: (s.title as string) ?? 'Untitled Source',
     url: (s.url as string) ?? '',
@@ -69,16 +41,13 @@ function mapResultsToReport(
     apiSource: (s.api_source as string) ?? undefined,
   }));
 
-  // Findings: map FindingResponse → descriptive strings
   const findings: string[] = backendFindings.map((f) => {
     const title = (f.title as string) ?? '';
     const content = (f.content as string) ?? '';
-    if (title && content && !content.startsWith(title))
-      return `${title} — ${content}`;
+    if (title && content && !content.startsWith(title)) return `${title} — ${content}`;
     return content || title || 'Finding';
   });
 
-  // Executive summary: prefer summary, fall back to first 800 chars of markdown
   const summary = (report.summary as string) ?? '';
   const mdContent = (report.markdown_content as string) ?? '';
   const executiveSummary =
@@ -88,8 +57,7 @@ function mapResultsToReport(
     title: (report.title as string) ?? 'Research Report',
     executiveSummary,
     methodology: undefined,
-    tableOfContents:
-      sections.length > 0 ? sections.map((s) => s.heading) : undefined,
+    tableOfContents: sections.length > 0 ? sections.map((s) => s.heading) : undefined,
     sections,
     sources: sources.length > 0 ? sources : undefined,
     findings: findings.length > 0 ? findings : undefined,
@@ -97,114 +65,9 @@ function mapResultsToReport(
   };
 }
 
-/* ------------------------------------------------------------------ */
-/*  Reusable UI Components                                             */
-/* ------------------------------------------------------------------ */
-
-const GlassCard = ({
-  children,
-  className = '',
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) => (
-  <div
-    className={`bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl shadow-xl ${className}`}
-  >
-    {children}
-  </div>
-);
-
-const AgentIcon = ({
-  name,
-  status,
-  isActive,
-}: {
-  name: string;
-  status: AgentStatus;
-  isActive: boolean;
-}) => {
-  const icons: Record<string, React.ElementType> = {
-    'User Proxy': User,
-    Researcher: Database,
-    Analyst: Cpu,
-    'Fact Checker': ShieldCheck,
-    'Report Generator': FileText,
-  };
-  const Icon = icons[name] || Search;
-
-  const getColors = () => {
-    switch (status) {
-      case AgentStatus.COMPLETED:
-        return 'text-emerald-400 border-emerald-400/50 bg-emerald-400/10';
-      case AgentStatus.IN_PROGRESS:
-        return 'text-amber-400 border-amber-400/50 bg-amber-400/10';
-      case AgentStatus.FAILED:
-        return 'text-rose-400 border-rose-400/50 bg-rose-400/10';
-      default:
-        return 'text-slate-400 border-slate-400/30 bg-slate-400/5';
-    }
-  };
-
-  return (
-    <div className="relative">
-      {/* Outer pulsing ring for active agent */}
-      {isActive && (
-        <>
-          <motion.div
-            className="absolute -inset-3 rounded-2xl border-2 border-amber-400/40"
-            animate={{ scale: [1, 1.18, 1], opacity: [0.6, 0, 0.6] }}
-            transition={{ repeat: Infinity, duration: 2, ease: 'easeInOut' }}
-          />
-          <motion.div
-            className="absolute -inset-1.5 rounded-xl border border-amber-400/30"
-            animate={{ scale: [1, 1.08, 1], opacity: [0.8, 0.2, 0.8] }}
-            transition={{ repeat: Infinity, duration: 1.4, ease: 'easeInOut' }}
-          />
-          {/* Glow backdrop */}
-          <motion.div
-            className="absolute -inset-4 rounded-2xl bg-amber-400/10 blur-xl -z-10"
-            animate={{ opacity: [0.3, 0.7, 0.3] }}
-            transition={{ repeat: Infinity, duration: 2, ease: 'easeInOut' }}
-          />
-        </>
-      )}
-
-      {/* Completed checkmark flash */}
-      {status === AgentStatus.COMPLETED && (
-        <motion.div
-          className="absolute -inset-2 rounded-xl bg-emerald-400/20 blur-lg -z-10"
-          initial={{ opacity: 0, scale: 0.5 }}
-          animate={{ opacity: [0, 0.8, 0.3], scale: [0.5, 1.2, 1] }}
-          transition={{ duration: 0.6 }}
-        />
-      )}
-
-      <motion.div
-        animate={
-          isActive
-            ? { scale: [1, 1.08, 1], rotate: [0, 3, -3, 0] }
-            : status === AgentStatus.COMPLETED
-              ? { scale: 1 }
-              : {}
-        }
-        transition={
-          isActive
-            ? { repeat: Infinity, duration: 2.5, ease: 'easeInOut' }
-            : { duration: 0.4 }
-        }
-        className={`p-4 rounded-xl border-2 transition-all duration-500 relative ${getColors()}`}
-      >
-        <Icon size={32} />
-      </motion.div>
-    </div>
-  );
-};
-
-/* ------------------------------------------------------------------ */
-/*  Agent name mapping (backend → frontend display name)               */
-/* ------------------------------------------------------------------ */
-
+/* ─────────────────────────────────────────────────────────────
+   Agent name / status maps
+───────────────────────────────────────────────────────────── */
 const AGENT_NAME_MAP: Record<string, string> = {
   user_proxy: 'User Proxy',
   researcher: 'Researcher',
@@ -220,14 +83,201 @@ const AGENT_STATUS_MAP: Record<string, AgentStatus> = {
   failed: AgentStatus.FAILED,
 };
 
-/* ------------------------------------------------------------------ */
-/*  Main Application                                                   */
-/* ------------------------------------------------------------------ */
+/* ─────────────────────────────────────────────────────────────
+   Scroll-reveal hook
+───────────────────────────────────────────────────────────── */
+function useScrollReveal() {
+  useEffect(() => {
+    const els = document.querySelectorAll('.reveal');
+    const io = new IntersectionObserver(
+      (entries) => entries.forEach((e) => { if (e.isIntersecting) e.target.classList.add('visible'); }),
+      { threshold: 0.1, rootMargin: '0px 0px -40px 0px' }
+    );
+    els.forEach((el) => io.observe(el));
+    return () => io.disconnect();
+  });
+}
 
+/* ─────────────────────────────────────────────────────────────
+   Shared easing
+───────────────────────────────────────────────────────────── */
+const SPRING = { type: 'spring', stiffness: 380, damping: 30 } as const;
+const EASE_OUT = [0.32, 0.72, 0, 1] as const;
+
+/* ─────────────────────────────────────────────────────────────
+   SceneBG — fixed OLED background with gradient orbs
+───────────────────────────────────────────────────────── */
+const SceneBG = () => (
+  <div className="fixed inset-0 overflow-hidden pointer-events-none" style={{ zIndex: 0 }}>
+    {/* Deep OLED black base */}
+    <div className="absolute inset-0 bg-[#030305]" />
+    {/* Purple orb — top left */}
+    <div className="absolute -top-[35%] -left-[15%] w-[75%] h-[75%] rounded-full"
+      style={{ background: 'radial-gradient(circle, rgba(99,66,245,0.18) 0%, transparent 70%)' }} />
+    {/* Violet orb — right centre */}
+    <div className="absolute top-[30%] -right-[20%] w-[65%] h-[65%] rounded-full"
+      style={{ background: 'radial-gradient(circle, rgba(139,92,246,0.12) 0%, transparent 70%)' }} />
+    {/* Emerald orb — bottom */}
+    <div className="absolute bottom-[-10%] left-[15%] w-[55%] h-[45%] rounded-full"
+      style={{ background: 'radial-gradient(circle, rgba(16,185,129,0.07) 0%, transparent 70%)' }} />
+    {/* Subtle grid lines */}
+    <div className="absolute inset-0 opacity-[0.025]"
+      style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px)', backgroundSize: '60px 60px' }} />
+  </div>
+);
+
+/* ─────────────────────────────────────────────────────────────
+   Double-Bezel Card
+───────────────────────────────────────────────────────── */
+const BezelCard = ({ children, className = '', innerClassName = '' }: {
+  children: React.ReactNode; className?: string; innerClassName?: string;
+}) => (
+  <div className={`p-[1px] rounded-[1.75rem] shadow-[0_32px_80px_rgba(0,0,0,0.7),0_0_0_1px_rgba(255,255,255,0.06)] ${className}`}
+    style={{ background: 'linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.03) 50%, rgba(255,255,255,0.06) 100%)' }}>
+    <div className={`bg-[#0b0b14] rounded-[calc(1.75rem-1px)] shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] ${innerClassName}`}>
+      {children}
+    </div>
+  </div>
+);
+
+/* ─────────────────────────────────────────────────────────────
+   Pill CTA Button
+───────────────────────────────────────────────────────── */
+const PillButton = ({
+  children, onClick, disabled = false, variant = 'primary', className = '',
+}: {
+  children: React.ReactNode; onClick?: () => void; disabled?: boolean;
+  variant?: 'primary' | 'ghost'; className?: string;
+}) => {
+  const base = 'group inline-flex items-center gap-3 rounded-full font-semibold text-sm transition-all active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed';
+  const variants = {
+    primary: 'text-white px-6 py-2.5',
+    ghost: 'text-white/70 hover:text-white px-5 py-2.5',
+  };
+  const variantStyles = {
+    primary: { background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)', boxShadow: '0 0 32px rgba(99,102,241,0.4), inset 0 1px 0 rgba(255,255,255,0.15)' },
+    ghost: { background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' },
+  };
+  return (
+    <motion.button
+      onClick={onClick}
+      disabled={disabled}
+      whileTap={{ scale: 0.97 }}
+      style={{ transitionTimingFunction: `cubic-bezier(${EASE_OUT.join(',')})`, transitionDuration: '400ms', ...variantStyles[variant] }}
+      className={`${base} ${variants[variant]} ${className}`}
+    >
+      {children}
+    </motion.button>
+  );
+};
+
+/* ─────────────────────────────────────────────────────────────
+   Eyebrow Badge
+───────────────────────────────────────────────────────── */
+const Eyebrow = ({ children }: { children: React.ReactNode }) => (
+  <span className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[10px] uppercase tracking-[0.22em] font-bold text-indigo-200"
+    style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.2) 0%, rgba(139,92,246,0.15) 100%)', border: '1px solid rgba(139,92,246,0.35)', boxShadow: '0 0 20px rgba(99,102,241,0.15)' }}>
+    {children}
+  </span>
+);
+
+/* ─────────────────────────────────────────────────────────────
+   Agent icon cell
+───────────────────────────────────────────────────────── */
+const AGENT_ICONS: Record<string, React.ElementType> = {
+  'User Proxy': User,
+  'Researcher': Globe,
+  'Analyst': Cpu,
+  'Fact Checker': ShieldCheck,
+  'Report Generator': FileText,
+};
+
+const AgentCell = ({ agent, isActive }: { agent: AgentState; isActive: boolean }) => {
+  const Icon = AGENT_ICONS[agent.name] || Search;
+  const isComplete = agent.status === AgentStatus.COMPLETED;
+  const isFailed = agent.status === AgentStatus.FAILED;
+
+  const ringColor = isActive ? 'border-amber-400/50 text-amber-300 bg-amber-400/[0.08]'
+    : isComplete ? 'border-emerald-400/40 text-emerald-300 bg-emerald-400/[0.08]'
+    : isFailed ? 'border-rose-400/40 text-rose-300 bg-rose-400/[0.08]'
+    : 'border-white/[0.08] text-white/25 bg-white/[0.03]';
+
+  return (
+    <div className="flex flex-col items-center gap-3 relative z-10 flex-1">
+      <div className="relative">
+        {isActive && (
+          <motion.div
+            className="absolute -inset-3 rounded-2xl border border-amber-400/25"
+            animate={{ scale: [1, 1.22, 1], opacity: [0.6, 0, 0.6] }}
+            transition={{ repeat: Infinity, duration: 2.2, ease: 'easeInOut' }}
+          />
+        )}
+        <motion.div
+          animate={isActive ? { scale: [1, 1.06, 1] } : {}}
+          transition={isActive ? { repeat: Infinity, duration: 2.4, ease: 'easeInOut' } : {}}
+          className={`p-3 rounded-xl border transition-all duration-500 ${ringColor}`}
+        >
+          <Icon size={22} strokeWidth={1.5} />
+        </motion.div>
+      </div>
+
+      <div className="text-center">
+        <p className="font-semibold text-xs leading-tight text-white/80" style={{ fontFamily: 'var(--font-display)' }}>
+          {agent.name}
+        </p>
+        <p className="text-[9px] text-white/30 uppercase tracking-wider mt-0.5">{agent.description}</p>
+        <div className="mt-1.5 flex items-center justify-center gap-1">
+          {isActive && (
+            <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}>
+              <Loader2 size={10} className="text-amber-400" />
+            </motion.div>
+          )}
+          {isComplete && (
+            <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={SPRING}>
+              <CheckCircle2 size={10} className="text-emerald-400" />
+            </motion.div>
+          )}
+          {isFailed && <AlertCircle size={10} className="text-rose-400" />}
+          <span className={`text-[9px] font-bold uppercase tracking-wider ${
+            isComplete ? 'text-emerald-400' : isActive ? 'text-amber-400' : isFailed ? 'text-rose-400' : 'text-white/20'
+          }`}>
+            {agent.status}
+          </span>
+        </div>
+      </div>
+
+      {/* Flow dots when complete */}
+      {isComplete && (
+        <div className="absolute top-[28px] left-[calc(50%+24px)] right-0 h-[2px] pointer-events-none overflow-hidden hidden md:block">
+          {[0, 1, 2].map((i) => (
+            <motion.div key={i}
+              className="absolute top-[-3px] w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]"
+              animate={{ left: ['0%', '100%'], opacity: [0, 1, 1, 0] }}
+              transition={{ repeat: Infinity, duration: 1.4, delay: i * 0.45, ease: 'linear' }}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+/* ─────────────────────────────────────────────────────────────
+   Feature card (landing)
+───────────────────────────────────────────────────────── */
+const FeatureChip = ({ icon: Icon, label }: { icon: React.ElementType; label: string }) => (
+  <div className="flex items-center gap-2 px-4 py-2 rounded-full text-white/60 text-xs font-medium"
+    style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', backdropFilter: 'blur(8px)' }}>
+    <Icon size={12} strokeWidth={1.5} className="text-indigo-400" />
+    <span>{label}</span>
+  </div>
+);
+
+/* ─────────────────────────────────────────────────────────────
+   Main Application
+───────────────────────────────────────────────────────── */
 export default function App() {
-  const [view, setView] = useState<
-    'landing' | 'progress' | 'report' | 'history'
-  >('landing');
+  const [view, setView] = useState<'landing' | 'progress' | 'report' | 'history'>('landing');
   const [history, setHistory] = useState<ResearchHistory[]>([]);
   const [options, setOptions] = useState<ResearchOptions>({
     query: '',
@@ -253,191 +303,112 @@ export default function App() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [backendOnline, setBackendOnline] = useState<boolean | null>(null);
+  const [navOpen, setNavOpen] = useState(false);
   const logEndRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  /* ---- auto-scroll logs ---- */
+  useScrollReveal();
+
   useEffect(() => {
-    if (logEndRef.current) {
-      logEndRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
+    if (logEndRef.current) logEndRef.current.scrollIntoView({ behavior: 'smooth' });
   }, [logs]);
 
-  /* ---- backend health check on mount ---- */
+  useEffect(() => { researchService.checkHealth().then(setBackendOnline); }, []);
   useEffect(() => {
-    researchService.checkHealth().then(setBackendOnline);
+    researchService.getHistory().then(({ sessions }) => setHistory(sessions)).catch(() => {});
+  }, []);
+  useEffect(() => () => {
+    wsRef.current?.close();
+    if (pollRef.current) clearInterval(pollRef.current);
   }, []);
 
-  /* ---- load history from backend on mount ---- */
-  useEffect(() => {
-    researchService
-      .getHistory()
-      .then(({ sessions }) => setHistory(sessions))
-      .catch(() => {});
+  const addLog = useCallback((agent: string, message: string, type: LogEntry['type'] = 'info') => {
+    const timestamp = new Date().toLocaleTimeString('en-GB', { hour12: false });
+    setLogs((prev) => [...prev, { timestamp, agent, message, type }]);
   }, []);
 
-  /* ---- cleanup ws & poll on unmount ---- */
-  useEffect(() => {
-    return () => {
-      wsRef.current?.close();
-      if (pollRef.current) clearInterval(pollRef.current);
-    };
-  }, []);
-
-  /* ---- helper: add log ---- */
-  const addLog = useCallback(
-    (agent: string, message: string, type: LogEntry['type'] = 'info') => {
-      const timestamp = new Date().toLocaleTimeString('en-GB', {
-        hour12: false,
-      });
-      setLogs((prev) => [...prev, { timestamp, agent, message, type }]);
-    },
-    [],
-  );
-
-  /* ---- WebSocket message handler ---- */
-  const handleWSMessage = useCallback(
-    (msg: WSMessage) => {
-      switch (msg.type) {
-        case 'connection_established':
-          addLog('System', 'Connected to research pipeline', 'success');
-          break;
-
-        case 'agent_status_update': {
-          const displayName =
-            AGENT_NAME_MAP[msg.agent] ?? msg.agent;
-          const mappedStatus =
-            AGENT_STATUS_MAP[msg.status] ?? AgentStatus.PENDING;
-
-          setAgents((prev) =>
-            prev.map((a) =>
-              a.name === displayName
-                ? { ...a, status: mappedStatus }
-                : a,
-            ),
-          );
-
-          // Use the backend-computed weighted overall_progress.
-          // Fall back to msg.progress only for orchestrator-level updates.
-          // Always use Math.max so the bar NEVER goes backward.
-          const overallPct =
-            (msg.data?.overall_progress as number | undefined) ??
-            (msg.agent === 'orchestrator' ? msg.progress : undefined);
-          if (overallPct !== undefined) {
-            setProgress((prev) => Math.max(prev, overallPct));
-          }
-
-          if (msg.output) {
-            addLog(displayName, msg.output, 'info');
-          }
-          if (msg.error) {
-            addLog(displayName, msg.error, 'error');
-          }
-          break;
-        }
-
-        case 'phase_update':
-          addLog(
-            'Pipeline',
-            msg.message ?? `Phase: ${msg.phase} → ${msg.status}`,
-            'info',
-          );
-          break;
-
-        case 'research_complete':
-          addLog('System', 'Research complete — loading report…', 'success');
-          setProgress(100);
-          // Fetch full results
-          if (sessionId) {
-            researchService
-              .getResearchResults(sessionId)
-              .then((res) => {
-                const r = mapResultsToReport(res as Record<string, unknown>);
-                if (r) {
-                  setReport(r);
-                  setView('report');
-                  // refresh history
-                  researchService
-                    .getHistory()
-                    .then(({ sessions }) => setHistory(sessions))
-                    .catch(() => {});
-                }
-              })
-              .catch((e) => addLog('System', `Error loading results: ${e}`, 'error'));
-          }
-          break;
-
-        case 'research_error':
-          addLog('System', `Error: ${msg.error}`, 'error');
-          setError(msg.error);
-          break;
+  const handleWSMessage = useCallback((msg: WSMessage) => {
+    switch (msg.type) {
+      case 'connection_established':
+        addLog('System', 'Connected to research pipeline', 'success');
+        break;
+      case 'agent_status_update': {
+        const displayName = AGENT_NAME_MAP[msg.agent] ?? msg.agent;
+        const mappedStatus = AGENT_STATUS_MAP[msg.status] ?? AgentStatus.PENDING;
+        setAgents((prev) => prev.map((a) => a.name === displayName ? { ...a, status: mappedStatus } : a));
+        const overallPct =
+          (msg.data?.overall_progress as number | undefined) ??
+          (msg.agent === 'orchestrator' ? msg.progress : undefined);
+        if (overallPct !== undefined) setProgress((prev) => Math.max(prev, overallPct));
+        if (msg.output) addLog(displayName, msg.output, 'info');
+        if (msg.error) addLog(displayName, msg.error, 'error');
+        break;
       }
-    },
-    [addLog, sessionId],
-  );
+      case 'phase_update':
+        addLog('Pipeline', msg.message ?? `Phase: ${msg.phase} → ${msg.status}`, 'info');
+        break;
+      case 'research_complete':
+        addLog('System', 'Research complete — loading report…', 'success');
+        setProgress(100);
+        if (sessionId) {
+          researchService.getResearchResults(sessionId)
+            .then((res) => {
+              const r = mapResultsToReport(res as Record<string, unknown>);
+              if (r) {
+                setReport(r);
+                setView('report');
+                researchService.getHistory().then(({ sessions }) => setHistory(sessions)).catch(() => {});
+              }
+            })
+            .catch((e) => addLog('System', `Error loading results: ${e}`, 'error'));
+        }
+        break;
+      case 'research_error':
+        addLog('System', `Error: ${msg.error}`, 'error');
+        setError(msg.error);
+        break;
+    }
+  }, [addLog, sessionId]);
 
-  /* ---- Start research ---- */
   const startResearch = async () => {
     if (!options.query.trim()) return;
-
     setView('progress');
     setProgress(0);
     setLogs([]);
     setError(null);
     setReport(null);
     setReportTab('Report');
-    setAgents((prev) =>
-      prev.map((a) => ({ ...a, status: AgentStatus.PENDING })),
-    );
-
+    setAgents((prev) => prev.map((a) => ({ ...a, status: AgentStatus.PENDING })));
     try {
       addLog('System', 'Submitting research request…', 'info');
-
       const result = await researchService.startResearch(options);
       const sid = result.session_id;
       setSessionId(sid);
-
       addLog('System', `Session started: ${sid}`, 'success');
-
-      // Connect WebSocket for real-time updates
       wsRef.current?.close();
       wsRef.current = researchService.connectWebSocket(
-        sid,
-        handleWSMessage,
+        sid, handleWSMessage,
         () => addLog('System', 'WebSocket disconnected', 'warning'),
       );
-
-      // Fall-back polling every 5 s (in case WS updates are sparse)
       if (pollRef.current) clearInterval(pollRef.current);
       pollRef.current = setInterval(async () => {
         try {
           const status = await researchService.getResearchStatus(sid);
-          // Guard: never let polling move the bar backward (WS may be ahead)
           setProgress((prev) => Math.max(prev, status.progress));
-
           if (status.status === 'completed' || status.status === 'failed') {
             if (pollRef.current) clearInterval(pollRef.current);
           }
-
-          if (
-            status.status === 'completed' &&
-            view !== 'report'
-          ) {
+          if (status.status === 'completed' && view !== 'report') {
             const res = await researchService.getResearchResults(sid);
             const r = mapResultsToReport(res as Record<string, unknown>);
             if (r) {
               setReport(r);
               setView('report');
-              researchService
-                .getHistory()
-                .then(({ sessions }) => setHistory(sessions))
-                .catch(() => {});
+              researchService.getHistory().then(({ sessions }) => setHistory(sessions)).catch(() => {});
             }
           }
-        } catch {
-          /* polling errors are non-fatal */
-        }
+        } catch { /* polling errors are non-fatal */ }
       }, 5000);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -446,374 +417,505 @@ export default function App() {
     }
   };
 
-  /* ---- Export helpers ---- */
   const exportMarkdown = () => {
     if (!report) return;
     const md = [
       `# ${report.title}\n`,
       `## Executive Summary\n${report.executiveSummary}\n`,
       report.methodology ? `## Methodology\n${report.methodology}\n` : '',
-      ...(report.sections ?? []).map(
-        (s) => `## ${s.heading}\n${s.content}\n`,
-      ),
+      ...(report.sections ?? []).map((s) => `## ${s.heading}\n${s.content}\n`),
       report.sources?.length
-        ? `## Sources\n${report.sources.map((s) => `- [${s.title}](${s.url}) — ${s.relevance}`).join('\n')}`
-        : '',
+        ? `## Sources\n${report.sources.map((s) => `- [${s.title}](${s.url}) — ${s.relevance}`).join('\n')}` : '',
     ].join('\n');
-
-    const blob = new Blob([md], { type: 'text/markdown' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `${report.title?.replace(/\s+/g, '_') ?? 'report'}.md`;
+    const a = Object.assign(document.createElement('a'), {
+      href: URL.createObjectURL(new Blob([md], { type: 'text/markdown' })),
+      download: `${report.title?.replace(/\s+/g, '_') ?? 'report'}.md`,
+    });
     a.click();
   };
 
   const exportHTML = () => {
     if (!report) return;
-    const html = `<!DOCTYPE html>
-<html lang="en"><head><meta charset="UTF-8"><title>${report.title}</title>
-<style>body{font-family:Inter,sans-serif;max-width:800px;margin:0 auto;padding:2rem;color:#1e293b}h1{color:#4f46e5}h2{margin-top:2rem}a{color:#4f46e5}</style>
-</head><body>
-<h1>${report.title}</h1>
-<h2>Executive Summary</h2><p>${report.executiveSummary}</p>
-${report.methodology ? `<h2>Methodology</h2><p>${report.methodology}</p>` : ''}
+    const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>${report.title}</title>
+<style>body{font-family:system-ui,sans-serif;max-width:800px;margin:0 auto;padding:2rem;color:#1e293b}h1{color:#4f46e5}a{color:#4f46e5}</style></head><body>
+<h1>${report.title}</h1><h2>Executive Summary</h2><p>${report.executiveSummary}</p>
 ${(report.sections ?? []).map((s) => `<h2>${s.heading}</h2><div>${s.content}</div>`).join('')}
-${report.sources?.length ? `<h2>Sources</h2><ul>${report.sources.map((s) => `<li><a href="${s.url}">${s.title}</a> — ${s.relevance}</li>`).join('')}</ul>` : ''}
+${report.sources?.length ? `<h2>Sources</h2><ul>${report.sources.map((s) => `<li><a href="${s.url}">${s.title}</a></li>`).join('')}</ul>` : ''}
 </body></html>`;
-
-    const blob = new Blob([html], { type: 'text/html' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `${report.title?.replace(/\s+/g, '_') ?? 'report'}.html`;
+    const a = Object.assign(document.createElement('a'), {
+      href: URL.createObjectURL(new Blob([html], { type: 'text/html' })),
+      download: `${report.title?.replace(/\s+/g, '_') ?? 'report'}.html`,
+    });
     a.click();
   };
 
-  /* ---------------------------------------------------------------- */
-  /*  RENDER                                                           */
-  /* ---------------------------------------------------------------- */
-
+  /* ─────────────────────────────────────────────────────────
+     Render
+  ───────────────────────────────────────────────────────── */
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#1a0b2e] via-[#4a1d4d] to-[#d97706] text-white font-sans selection:bg-amber-500/30">
-      {/* ---- Header ---- */}
-      <header className="px-8 py-4 flex items-center justify-between border-b border-white/10 bg-black/20 backdrop-blur-sm sticky top-0 z-50">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg shadow-purple-500/20">
-            <Cpu className="text-white" size={24} />
-          </div>
-          <span className="text-xl font-bold tracking-tight">
-            Research Assistant
-          </span>
-          {backendOnline !== null && (
-            <span
-              className={`ml-2 inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-widest ${
-                backendOnline
-                  ? 'bg-emerald-500/20 text-emerald-400'
-                  : 'bg-rose-500/20 text-rose-400'
-              }`}
-            >
-              <span
-                className={`w-1.5 h-1.5 rounded-full ${
-                  backendOnline ? 'bg-emerald-400' : 'bg-rose-400'
-                }`}
-              />
-              {backendOnline ? 'Online' : 'Offline'}
+    <div className="grain-overlay relative min-h-[100dvh] text-white bg-[#030305]" style={{ fontFamily: 'var(--font-sans)', zIndex: 1 }}>
+      <SceneBG />
+
+      {/* ══════════════════════════════════════════════════
+          FLOATING NAV ISLAND
+      ══════════════════════════════════════════════════ */}
+      <div className="fixed top-5 left-0 right-0 z-50 flex justify-center px-4 pointer-events-none">
+        <motion.nav
+          initial={{ opacity: 0, y: -16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, ease: EASE_OUT }}
+          className="pointer-events-auto flex items-center gap-6 backdrop-blur-2xl rounded-full pl-4 pr-4 py-2.5"
+          style={{ background: 'rgba(11,11,20,0.85)', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 8px 40px rgba(0,0,0,0.6), 0 0 0 1px rgba(99,102,241,0.1), inset 0 1px 0 rgba(255,255,255,0.06)' }}
+        >
+          {/* Logo */}
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-[0_0_12px_rgba(99,102,241,0.5)]">
+              <Sparkles size={14} strokeWidth={2} className="text-white" />
+            </div>
+            <span className="text-sm font-bold tracking-tight" style={{ fontFamily: 'var(--font-display)' }}>
+              Research<span className="text-indigo-400">AI</span>
             </span>
+          </div>
+
+          {/* Divider */}
+          <div className="h-4 w-px bg-white/10 hidden sm:block" />
+
+          {/* Nav links — desktop */}
+          <div className="hidden sm:flex items-center gap-1">
+            {(['Research', 'History'] as const).map((label) => {
+              const targetView = label === 'Research' ? 'landing' : 'history';
+              const isActive = view === targetView || (label === 'Research' && (view === 'progress' || view === 'report'));
+              return (
+                <button
+                  key={label}
+                  onClick={() => {
+                    if (label === 'History') {
+                      researchService.getHistory().then(({ sessions }) => setHistory(sessions)).catch(() => {});
+                    }
+                    setView(targetView);
+                  }}
+                  className={`px-3.5 py-1.5 rounded-full text-sm font-medium transition-all duration-300 ${
+                    isActive ? 'bg-white/[0.09] text-white' : 'text-white/45 hover:text-white/80'
+                  }`}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Status badge */}
+          {backendOnline !== null && (
+            <div className={`hidden sm:flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[9px] uppercase tracking-[0.15em] font-bold ${
+              backendOnline ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'
+            }`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${backendOnline ? 'bg-emerald-400' : 'bg-rose-400'}`} />
+              {backendOnline ? 'Online' : 'Offline'}
+            </div>
           )}
-        </div>
 
-        <nav className="flex items-center gap-8">
+          {/* Mobile hamburger */}
           <button
-            onClick={() => setView('landing')}
-            className={`text-sm font-medium transition-colors ${
-              view === 'landing'
-                ? 'text-white'
-                : 'text-white/60 hover:text-white'
-            }`}
+            className="sm:hidden w-8 h-8 flex items-center justify-center"
+            onClick={() => setNavOpen(!navOpen)}
           >
-            Research
+            <motion.div animate={navOpen ? { rotate: 0 } : { rotate: 0 }} className="relative w-4 h-4">
+              <motion.span
+                animate={navOpen ? { rotate: 45, y: 6 } : { rotate: 0, y: 0 }}
+                transition={{ duration: 0.25, ease: EASE_OUT }}
+                className="absolute left-0 top-0 w-full h-0.5 bg-white rounded-full block"
+              />
+              <motion.span
+                animate={navOpen ? { opacity: 0 } : { opacity: 1 }}
+                transition={{ duration: 0.2 }}
+                className="absolute left-0 top-1.5 w-full h-0.5 bg-white rounded-full block"
+              />
+              <motion.span
+                animate={navOpen ? { rotate: -45, y: -6 } : { rotate: 0, y: 0 }}
+                transition={{ duration: 0.25, ease: EASE_OUT }}
+                className="absolute left-0 top-3 w-full h-0.5 bg-white rounded-full block"
+              />
+            </motion.div>
           </button>
-          <button
-            onClick={() => {
-              setView('history');
-              researchService
-                .getHistory()
-                .then(({ sessions }) => setHistory(sessions))
-                .catch(() => {});
-            }}
-            className={`text-sm font-medium transition-colors flex items-center gap-2 ${
-              view === 'history'
-                ? 'text-white'
-                : 'text-white/60 hover:text-white'
-            }`}
-          >
-            <History size={16} />
-            History
-          </button>
-        </nav>
-      </header>
+        </motion.nav>
+      </div>
 
-      <main className="max-w-7xl mx-auto px-4 py-12">
+      {/* Mobile nav overlay */}
+      <AnimatePresence>
+        {navOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+            className="fixed inset-0 z-40 bg-[#030305]/90 backdrop-blur-3xl flex flex-col items-center justify-center gap-6"
+          >
+            {(['Research', 'History'] as const).map((label, i) => (
+              <motion.button
+                key={label}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 10 }}
+                transition={{ delay: i * 0.08, duration: 0.4, ease: EASE_OUT }}
+                onClick={() => {
+                  setNavOpen(false);
+                  if (label === 'History') {
+                    researchService.getHistory().then(({ sessions }) => setHistory(sessions)).catch(() => {});
+                    setView('history');
+                  } else {
+                    setView('landing');
+                  }
+                }}
+                className="text-3xl font-bold text-white/80 hover:text-white transition-colors"
+                style={{ fontFamily: 'var(--font-display)' }}
+              >
+                {label}
+              </motion.button>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ══════════════════════════════════════════════════
+          MAIN CONTENT
+      ══════════════════════════════════════════════════ */}
+      <main className="pt-24 pb-20 px-4 max-w-6xl mx-auto">
         <AnimatePresence mode="wait">
-          {/* ============================================================ */}
-          {/*  LANDING VIEW                                                 */}
-          {/* ============================================================ */}
+
+          {/* ────────────────────────────────────────────
+              LANDING VIEW
+          ──────────────────────────────────────────── */}
           {view === 'landing' && (
             <motion.div
               key="landing"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="flex flex-col items-center text-center"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0, y: -16 }}
+              transition={{ duration: 0.5, ease: EASE_OUT }}
             >
-              <h1 className="text-6xl font-black mb-6 bg-gradient-to-r from-orange-400 via-rose-400 to-purple-400 bg-clip-text text-transparent tracking-tight">
-                Multi-Agent Research Assistant
-              </h1>
-              <p className="text-xl text-white/70 max-w-2xl mb-12 leading-relaxed">
-                5 specialized AI agents collaborate to research, analyze,
-                verify, and generate comprehensive reports on any topic.
-              </p>
+              {/* Hero */}
+              <section className="flex flex-col items-center justify-center text-center pt-12 pb-10 md:pt-16 md:pb-12 gap-7">
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.6, delay: 0.1, ease: EASE_OUT }}
+                >
+                  <Eyebrow><Sparkles size={10} strokeWidth={2} /> Multi-Agent AI Research</Eyebrow>
+                </motion.div>
 
-              {/* Backend offline banner */}
-              {backendOnline === false && (
-                <div className="mb-6 flex items-center gap-3 px-5 py-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-300 text-sm">
-                  <AlertCircle size={18} />
-                  <span>
-                    Backend is unreachable. Make sure the server is running on
-                    port 8000.
+                <motion.h1
+                  initial={{ opacity: 0, y: 28 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.8, delay: 0.18, ease: EASE_OUT }}
+                  className="text-6xl sm:text-7xl md:text-8xl font-extrabold tracking-tight leading-[0.92] max-w-4xl"
+                  style={{ fontFamily: 'var(--font-display)', letterSpacing: '-0.03em' }}
+                >
+                  Research at the{' '}
+                  <br className="hidden sm:block" />
+                  <span style={{
+                    background: 'linear-gradient(135deg, #818cf8 0%, #a78bfa 40%, #c084fc 70%, #e879f9 100%)',
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
+                    backgroundClip: 'text',
+                  }}>
+                    speed of intelligence
                   </span>
+                </motion.h1>
+
+                <motion.p
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.6, delay: 0.35, ease: EASE_OUT }}
+                  className="text-lg md:text-xl text-white/55 max-w-2xl leading-relaxed"
+                >
+                  Five specialised AI agents collaborate to research, analyse, verify and
+                  generate comprehensive reports on any topic — in minutes.
+                </motion.p>
+
+                {/* Feature chips */}
+                <motion.div
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.6, delay: 0.48, ease: EASE_OUT }}
+                  className="flex flex-wrap justify-center gap-2"
+                >
+                  <FeatureChip icon={Globe} label="Multi-source search" />
+                  <FeatureChip icon={ShieldCheck} label="Fact-checked" />
+                  <FeatureChip icon={BookOpen} label="APA / MLA citations" />
+                  <FeatureChip icon={Zap} label="Real-time updates" />
+                </motion.div>
+              </section>
+
+              {/* Offline banner */}
+              {backendOnline === false && (
+                <motion.div
+                  initial={{ opacity: 0, y: -8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mb-6 flex items-center gap-3 px-5 py-3 bg-rose-500/[0.08] border border-rose-500/25 rounded-2xl text-rose-300 text-sm"
+                >
+                  <AlertCircle size={16} strokeWidth={1.5} />
+                  <span>Backend is unreachable. Ensure the server is running on port 8000.</span>
                   <button
-                    onClick={() =>
-                      researchService.checkHealth().then(setBackendOnline)
-                    }
-                    className="ml-2 underline hover:text-white"
+                    onClick={() => researchService.checkHealth().then(setBackendOnline)}
+                    className="ml-auto p-1 hover:text-white transition-colors"
                   >
-                    <RefreshCw size={14} />
+                    <RefreshCw size={14} strokeWidth={1.5} />
                   </button>
-                </div>
+                </motion.div>
               )}
 
-              <GlassCard className="w-full max-w-5xl p-8">
-                <div className="relative mb-6">
-                  <textarea
-                    value={options.query}
-                    onChange={(e) =>
-                      setOptions({ ...options, query: e.target.value })
-                    }
-                    placeholder="What are the major challenges of AI in 2026?"
-                    className="w-full bg-black/20 border border-white/10 rounded-xl p-4 pb-16 text-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all min-h-[160px] resize-none placeholder:text-white/20"
-                  />
-                  <motion.button
-                    whileHover={{
-                      scale: 1.05,
-                      filter: 'brightness(1.1)',
-                    }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={startResearch}
-                    disabled={!options.query.trim() || backendOnline === false}
-                    style={{
-                      backgroundColor: '#432371',
-                      color: '#faae7b',
-                    }}
-                    className="absolute bottom-4 right-4 px-5 py-2 rounded-lg font-bold text-sm transition-all shadow-lg flex items-center gap-2 group border border-[#faae7b]/20 disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    <span>Start Research</span>
-                    <Search
-                      size={16}
-                      className="group-hover:rotate-12 transition-transform"
-                    />
-                  </motion.button>
-                </div>
+              {/* Research input — double-bezel card */}
+              <motion.div
+                initial={{ opacity: 0, y: 32 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.7, delay: 0.5, ease: EASE_OUT }}
+              >
+                <BezelCard>
+                  <div className="p-6 md:p-8">
+                    {/* Textarea */}
+                    <div className="relative mb-5">
+                      <div className="p-px rounded-2xl" style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.25) 0%, rgba(139,92,246,0.1) 50%, rgba(255,255,255,0.06) 100%)' }}>
+                        <textarea
+                          value={options.query}
+                          onChange={(e) => setOptions({ ...options, query: e.target.value })}
+                          onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) startResearch(); }}
+                          placeholder="What are the major challenges of AI safety in 2026?"
+                          className="w-full rounded-[calc(1rem-1px)] p-5 pb-16 text-base md:text-lg focus:outline-none transition-all min-h-[180px] resize-none text-white/90"
+                          style={{ background: '#08080f', fontFamily: 'var(--font-sans)' }}
+                        />
+                        <style>{`textarea::placeholder { color: rgba(240,240,248,0.22); }`}</style>
+                      </div>
 
-                {/* Advanced options */}
-                <div className="text-left">
-                  <button
-                    onClick={() => setShowAdvanced(!showAdvanced)}
-                    className="flex items-center gap-2 text-sm font-semibold text-white/60 hover:text-white transition-colors mb-6"
-                  >
-                    {showAdvanced ? (
-                      <ChevronUp size={16} />
-                    ) : (
-                      <ChevronDown size={16} />
-                    )}
-                    Advanced Options
-                  </button>
+                      {/* Submit button — pinned bottom-right */}
+                      <div className="absolute bottom-4 right-4 flex items-center gap-2">
+                        <span className="text-[10px] text-white/20 hidden sm:block">⌘↵ to submit</span>
+                        <PillButton
+                          onClick={startResearch}
+                          disabled={!options.query.trim() || backendOnline === false}
+                        >
+                          <span>Start Research</span>
+                          <span className="w-7 h-7 rounded-full bg-black/20 flex items-center justify-center group-hover:translate-x-0.5 group-hover:-translate-y-px transition-transform duration-400" style={{ transitionTimingFunction: `cubic-bezier(${EASE_OUT.join(',')})` }}>
+                            <ArrowUpRight size={14} strokeWidth={2} />
+                          </span>
+                        </PillButton>
+                      </div>
+                    </div>
 
-                  <AnimatePresence>
-                    {showAdvanced && (
-                      <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: 'auto', opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        className="grid grid-cols-1 md:grid-cols-2 gap-8 overflow-hidden"
-                      >
-                        <div className="space-y-4">
-                          <div>
-                            <label className="text-[10px] uppercase tracking-widest font-bold text-white/40 mb-2 block">
-                              Focus Areas
-                            </label>
-                            <input
-                              type="text"
-                              value={options.focusAreas}
-                              onChange={(e) =>
-                                setOptions({
-                                  ...options,
-                                  focusAreas: e.target.value,
-                                })
-                              }
-                              className="w-full bg-black/20 border border-white/10 rounded-full px-4 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-white/30"
-                            />
-                          </div>
-                          <div className="grid grid-cols-2 gap-4">
-                            <div>
-                              <label className="text-[10px] uppercase tracking-widest font-bold text-white/40 mb-2 block">
-                                Report Format
-                              </label>
-                              <select
-                                value={options.format}
-                                onChange={(e) =>
-                                  setOptions({
-                                    ...options,
-                                    format: e.target.value,
-                                  })
-                                }
-                                className="w-full bg-black/40 border border-white/10 rounded-full px-4 py-2 text-sm appearance-none focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
-                              >
-                                <option value="Markdown">Markdown</option>
-                                <option value="PDF">PDF</option>
-                                <option value="HTML">HTML</option>
-                              </select>
+                    {/* Advanced options toggle */}
+                    <button
+                      onClick={() => setShowAdvanced(!showAdvanced)}
+                      className="flex items-center gap-2 text-xs font-semibold text-white/35 hover:text-white/70 transition-colors mb-4"
+                    >
+                      <motion.div animate={{ rotate: showAdvanced ? 180 : 0 }} transition={{ duration: 0.3, ease: EASE_OUT }}>
+                        <ChevronDown size={14} strokeWidth={1.5} />
+                      </motion.div>
+                      Advanced Options
+                    </button>
+
+                    <AnimatePresence>
+                      {showAdvanced && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: 'auto', opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.4, ease: EASE_OUT }}
+                          className="overflow-hidden"
+                        >
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+                            {/* Left column */}
+                            <div className="space-y-4">
+                              <div>
+                                <label className="text-[10px] uppercase tracking-[0.18em] font-semibold text-white/30 mb-2 block">
+                                  Focus Areas
+                                </label>
+                                <input
+                                  type="text"
+                                  value={options.focusAreas}
+                                  onChange={(e) => setOptions({ ...options, focusAreas: e.target.value })}
+                                  className="w-full bg-[#07070e] border border-white/[0.07] rounded-full px-4 py-2.5 text-sm text-white/80 focus:outline-none focus:border-indigo-500/40 transition-colors placeholder:text-white/20"
+                                />
+                              </div>
+                              <div className="grid grid-cols-2 gap-3">
+                                {[
+                                  { label: 'Report Format', key: 'format' as const, opts: ['Markdown', 'PDF', 'HTML'] },
+                                  { label: 'Citation Style', key: 'citationStyle' as const, opts: ['APA', 'MLA', 'Chicago', 'Harvard'] },
+                                ].map(({ label, key, opts }) => (
+                                  <div key={key}>
+                                    <label className="text-[10px] uppercase tracking-[0.18em] font-semibold text-white/30 mb-2 block">{label}</label>
+                                    <select
+                                      value={options[key]}
+                                      onChange={(e) => setOptions({ ...options, [key]: e.target.value })}
+                                      className="w-full bg-[#07070e] border border-white/[0.07] rounded-full px-4 py-2.5 text-sm text-white/80 appearance-none focus:outline-none focus:border-indigo-500/40 transition-colors cursor-pointer"
+                                    >
+                                      {opts.map((o) => <option key={o} value={o}>{o}</option>)}
+                                    </select>
+                                  </div>
+                                ))}
+                              </div>
                             </div>
-                            <div>
-                              <label className="text-[10px] uppercase tracking-widest font-bold text-white/40 mb-2 block">
-                                Citation Style
-                              </label>
-                              <select
-                                value={options.citationStyle}
-                                onChange={(e) =>
-                                  setOptions({
-                                    ...options,
-                                    citationStyle: e.target.value,
-                                  })
-                                }
-                                className="w-full bg-black/40 border border-white/10 rounded-full px-4 py-2 text-sm appearance-none focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
-                              >
-                                <option value="APA">APA</option>
-                                <option value="MLA">MLA</option>
-                                <option value="Chicago">Chicago</option>
-                                <option value="Harvard">Harvard</option>
-                              </select>
-                            </div>
-                          </div>
-                        </div>
 
-                        <div className="space-y-4">
-                          <div>
-                            <label className="text-[10px] uppercase tracking-widest font-bold text-white/40 mb-2 block">
-                              Source Preferences
-                            </label>
-                            <div className="bg-black/20 border border-white/10 rounded-xl p-3 text-sm text-white/60 space-y-1">
-                              {options.sources.map((s) => (
-                                <div
-                                  key={s}
-                                  className="flex items-center gap-2"
-                                >
-                                  <div className="w-1.5 h-1.5 bg-indigo-400 rounded-full" />
-                                  {s}
+                            {/* Right column */}
+                            <div className="space-y-4">
+                              <div>
+                                <label className="text-[10px] uppercase tracking-[0.18em] font-semibold text-white/30 mb-2 block">
+                                  Source Preferences
+                                </label>
+                                <div className="bg-[#07070e] border border-white/[0.07] rounded-2xl p-3 flex flex-wrap gap-2">
+                                  {options.sources.map((s) => (
+                                    <span key={s} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/25 text-indigo-300 text-[10px] font-semibold uppercase tracking-wider">
+                                      <span className="w-1 h-1 rounded-full bg-indigo-400" />
+                                      {s}
+                                    </span>
+                                  ))}
                                 </div>
-                              ))}
+                              </div>
+                              <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                  <label className="text-[10px] uppercase tracking-[0.18em] font-semibold text-white/30 mb-2 block">Max Sources</label>
+                                  <input
+                                    type="number"
+                                    value={options.maxSources}
+                                    onChange={(e) => setOptions({ ...options, maxSources: parseInt(e.target.value) || 50 })}
+                                    className="w-full bg-[#07070e] border border-white/[0.07] rounded-full px-4 py-2.5 text-sm text-white/80 focus:outline-none focus:border-indigo-500/40 transition-colors"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-[10px] uppercase tracking-[0.18em] font-semibold text-white/30 mb-2 block">Mode</label>
+                                  <select
+                                    value={options.mode}
+                                    onChange={(e) => setOptions({ ...options, mode: e.target.value })}
+                                    className="w-full bg-[#07070e] border border-white/[0.07] rounded-full px-4 py-2.5 text-sm text-white/80 appearance-none focus:outline-none focus:border-indigo-500/40 transition-colors cursor-pointer"
+                                  >
+                                    {['Automatic', 'Manual', 'Deep Research'].map((o) => <option key={o} value={o}>{o}</option>)}
+                                  </select>
+                                </div>
+                              </div>
                             </div>
                           </div>
-                          <div className="grid grid-cols-2 gap-4">
-                            <div>
-                              <label className="text-[10px] uppercase tracking-widest font-bold text-white/40 mb-2 block">
-                                Max Sources
-                              </label>
-                              <input
-                                type="number"
-                                value={options.maxSources}
-                                onChange={(e) =>
-                                  setOptions({
-                                    ...options,
-                                    maxSources: parseInt(e.target.value) || 50,
-                                  })
-                                }
-                                className="w-full bg-black/20 border border-white/10 rounded-full px-4 py-2 text-sm focus:outline-none"
-                              />
-                            </div>
-                            <div>
-                              <label className="text-[10px] uppercase tracking-widest font-bold text-white/40 mb-2 block">
-                                Mode
-                              </label>
-                              <select
-                                value={options.mode}
-                                onChange={(e) =>
-                                  setOptions({
-                                    ...options,
-                                    mode: e.target.value,
-                                  })
-                                }
-                                className="w-full bg-black/40 border border-white/10 rounded-full px-4 py-2 text-sm appearance-none focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
-                              >
-                                <option value="Automatic">Automatic</option>
-                                <option value="Manual">Manual</option>
-                                <option value="Deep Research">
-                                  Deep Research
-                                </option>
-                              </select>
-                            </div>
-                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                </BezelCard>
+              </motion.div>
+
+              {/* Agent preview strip */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: 0.7, ease: EASE_OUT }}
+                className="mt-8"
+              >
+                <BezelCard innerClassName="p-5 md:p-6">
+                  <p className="text-[10px] uppercase tracking-[0.2em] font-semibold text-white/25 mb-5 text-center">
+                    5-Stage Research Pipeline
+                  </p>
+                  <div className="flex items-start justify-between relative">
+                    {/* Track line */}
+                    <div className="absolute top-[22px] left-[40px] right-[40px] h-px bg-white/[0.06]" />
+                    {[
+                      { icon: User, label: 'User Proxy', desc: 'Analysis' },
+                      { icon: Globe, label: 'Researcher', desc: 'Collection' },
+                      { icon: Cpu, label: 'Analyst', desc: 'Synthesis' },
+                      { icon: ShieldCheck, label: 'Fact Checker', desc: 'Verify' },
+                      { icon: FileText, label: 'Generator', desc: 'Report' },
+                    ].map(({ icon: Icon, label, desc }, i) => (
+                      <motion.div
+                        key={label}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.8 + i * 0.07, duration: 0.4, ease: EASE_OUT }}
+                        className="flex flex-col items-center gap-2 flex-1 relative z-10"
+                      >
+                        <div className="p-2.5 rounded-xl border border-white/[0.07] bg-[#0d0d18] text-white/30">
+                          <Icon size={16} strokeWidth={1.5} />
+                        </div>
+                        <div className="text-center">
+                          <p className="text-[9px] font-semibold text-white/40 leading-tight" style={{ fontFamily: 'var(--font-display)' }}>{label}</p>
+                          <p className="text-[8px] text-white/20 mt-0.5">{desc}</p>
                         </div>
                       </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-              </GlassCard>
+                    ))}
+                  </div>
+                </BezelCard>
+              </motion.div>
             </motion.div>
           )}
 
-          {/* ============================================================ */}
-          {/*  PROGRESS VIEW                                                */}
-          {/* ============================================================ */}
+          {/* ────────────────────────────────────────────
+              PROGRESS VIEW
+          ──────────────────────────────────────────── */}
           {view === 'progress' && (
             <motion.div
               key="progress"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0 }}
-              className="space-y-8"
+              transition={{ duration: 0.5, ease: EASE_OUT }}
+              className="space-y-5"
             >
               {/* Error banner */}
               {error && (
-                <div className="flex items-center gap-3 px-5 py-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-300 text-sm">
-                  <AlertCircle size={18} />
-                  <span>{error}</span>
+                <div className="flex items-center gap-3 px-5 py-3.5 bg-rose-500/[0.08] border border-rose-500/25 rounded-2xl text-rose-300 text-sm">
+                  <AlertCircle size={16} strokeWidth={1.5} />
+                  <span className="flex-1">{error}</span>
                   <button
-                    onClick={() => {
-                      setError(null);
-                      startResearch();
-                    }}
-                    className="ml-auto flex items-center gap-1 underline hover:text-white"
+                    onClick={() => { setError(null); startResearch(); }}
+                    className="flex items-center gap-1.5 text-xs font-semibold hover:text-white transition-colors"
                   >
-                    <RefreshCw size={14} /> Retry
+                    <RefreshCw size={12} strokeWidth={1.5} /> Retry
                   </button>
                 </div>
               )}
 
+              {/* Page heading */}
+              <div className="flex items-baseline justify-between mb-2">
+                <div>
+                  <Eyebrow><Loader2 size={10} className="animate-spin" /> Processing</Eyebrow>
+                  <h2 className="text-2xl md:text-3xl font-extrabold mt-3 tracking-tight" style={{ fontFamily: 'var(--font-display)' }}>
+                    Research in Progress
+                  </h2>
+                  <p className="text-sm text-white/35 mt-1 max-w-md truncate">{options.query}</p>
+                </div>
+                <span className="text-3xl font-extrabold tabular-nums text-indigo-400" style={{ fontFamily: 'var(--font-display)' }}>
+                  {progress}%
+                </span>
+              </div>
+
+              {/* Progress bar */}
+              <div className="h-1 bg-white/[0.06] rounded-full overflow-hidden">
+                <motion.div
+                  className="h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-violet-500 relative"
+                  initial={{ width: 0 }}
+                  animate={{ width: `${progress}%` }}
+                  transition={{ duration: 0.9, ease: EASE_OUT }}
+                >
+                  <motion.div
+                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent"
+                    animate={{ x: ['-100%', '200%'] }}
+                    transition={{ repeat: Infinity, duration: 2, ease: 'linear' }}
+                  />
+                </motion.div>
+              </div>
+
               {/* Agent pipeline */}
-              <GlassCard className="p-8">
+              <BezelCard innerClassName="p-6 md:p-8">
                 <div className="flex items-center justify-between mb-8">
-                  <h3 className="text-xl font-bold">Agent Pipeline</h3>
-                  <span className="text-xs text-white/40 font-mono">
-                    {agents.filter((a) => a.status === AgentStatus.COMPLETED).length}/{agents.length} agents complete
+                  <h3 className="font-bold text-sm text-white/60" style={{ fontFamily: 'var(--font-display)' }}>
+                    Agent Pipeline
+                  </h3>
+                  <span className="text-[10px] font-mono text-white/25">
+                    {agents.filter((a) => a.status === AgentStatus.COMPLETED).length}/{agents.length} complete
                   </span>
                 </div>
 
-                <div className="flex items-start justify-between relative px-2">
-                  {/* Background track line */}
-                  <div className="absolute top-[34px] left-[40px] right-[40px] h-[3px] bg-white/5 rounded-full" />
-                  {/* Completed fill line */}
+                {/* Agent row */}
+                <div className="flex items-start justify-between relative px-2 md:px-4">
+                  {/* Background track */}
+                  <div className="absolute top-[26px] left-[52px] right-[52px] h-px bg-white/[0.06]" />
+                  {/* Progress fill */}
                   <motion.div
-                    className="absolute top-[34px] left-[40px] h-[3px] rounded-full bg-gradient-to-r from-emerald-500 via-emerald-400 to-emerald-300"
+                    className="absolute top-[26px] left-[52px] h-px bg-gradient-to-r from-indigo-500 to-emerald-500"
                     style={{ originX: 0 }}
                     initial={{ width: 0 }}
                     animate={{
@@ -821,327 +923,167 @@ ${report.sources?.length ? `<h2>Sources</h2><ul>${report.sources.map((s) => `<li
                         const completed = agents.filter((a) => a.status === AgentStatus.COMPLETED).length;
                         const inProgress = agents.findIndex((a) => a.status === AgentStatus.IN_PROGRESS);
                         const step = inProgress >= 0 ? inProgress : completed;
-                        const maxW = 100 - (80 / agents.length); // account for icon width
-                        return `${(step / (agents.length - 1)) * maxW}%`;
+                        return `${(step / Math.max(agents.length - 1, 1)) * (100 - 80 / agents.length)}%`;
                       })(),
                     }}
-                    transition={{ duration: 0.8, ease: 'easeOut' }}
+                    transition={{ duration: 0.8, ease: EASE_OUT }}
                   />
 
-                  {agents.map((agent, idx) => {
-                    const isCompleted = agent.status === AgentStatus.COMPLETED;
-                    const isRunning = agent.status === AgentStatus.IN_PROGRESS;
-                    const isFailed = agent.status === AgentStatus.FAILED;
-
-                    return (
-                      <motion.div
-                        key={agent.id}
-                        initial={{ opacity: 0, y: 24 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: idx * 0.1, duration: 0.5, ease: 'backOut' }}
-                        className="flex flex-col items-center gap-3 relative z-10 w-1/5"
-                      >
-                        <AgentIcon
-                          name={agent.name}
-                          status={agent.status}
-                          isActive={isRunning}
-                        />
-
-                        <div className="text-center mt-1">
-                          <p className="font-bold text-sm leading-tight">{agent.name}</p>
-                          <p className="text-[10px] text-white/40 uppercase tracking-wider mt-0.5">
-                            {agent.description}
-                          </p>
-
-                          <motion.div
-                            className="mt-2 flex items-center justify-center gap-1.5"
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            transition={{ delay: 0.2 }}
-                          >
-                            {isRunning && (
-                              <motion.div
-                                animate={{ rotate: 360 }}
-                                transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
-                              >
-                                <Loader2 size={12} className="text-amber-400" />
-                              </motion.div>
-                            )}
-                            {isCompleted && (
-                              <motion.div
-                                initial={{ scale: 0 }}
-                                animate={{ scale: 1 }}
-                                transition={{ type: 'spring', stiffness: 400, damping: 12 }}
-                              >
-                                <CheckCircle2 size={12} className="text-emerald-400" />
-                              </motion.div>
-                            )}
-                            {isFailed && (
-                              <motion.div
-                                initial={{ scale: 0 }}
-                                animate={{ scale: [0, 1.3, 1] }}
-                                transition={{ duration: 0.4 }}
-                              >
-                                <AlertCircle size={12} className="text-rose-400" />
-                              </motion.div>
-                            )}
-                            <span
-                              className={`text-[10px] font-bold ${
-                                isCompleted
-                                  ? 'text-emerald-400'
-                                  : isRunning
-                                    ? 'text-amber-400'
-                                    : isFailed
-                                      ? 'text-rose-400'
-                                      : 'text-white/20'
-                              }`}
-                            >
-                              {agent.status}
-                            </span>
-                          </motion.div>
-                        </div>
-
-                        {/* Animated data-flow dots between agents */}
-                        {idx < agents.length - 1 && isCompleted && (
-                          <div className="absolute top-[34px] left-[calc(50%+28px)] w-[calc(100%-56px)] h-[3px] pointer-events-none overflow-hidden">
-                            {[0, 1, 2].map((dot) => (
-                              <motion.div
-                                key={dot}
-                                className="absolute top-[-2px] w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]"
-                                initial={{ left: '-8px', opacity: 0 }}
-                                animate={{ left: ['0%', '100%'], opacity: [0, 1, 1, 0] }}
-                                transition={{
-                                  repeat: Infinity,
-                                  duration: 1.2,
-                                  delay: dot * 0.4,
-                                  ease: 'linear',
-                                }}
-                              />
-                            ))}
-                          </div>
-                        )}
-                        {idx < agents.length - 1 && isRunning && (
-                          <div className="absolute top-[34px] left-[calc(50%+28px)] w-[calc(100%-56px)] h-[3px] pointer-events-none overflow-hidden">
-                            <motion.div
-                              className="absolute top-[-1px] w-6 h-[5px] rounded-full bg-gradient-to-r from-transparent via-amber-400 to-transparent"
-                              animate={{ left: ['-24px', '100%'] }}
-                              transition={{ repeat: Infinity, duration: 1.5, ease: 'linear' }}
-                            />
-                          </div>
-                        )}
-                      </motion.div>
-                    );
-                  })}
-                </div>
-
-                {/* Progress bar */}
-                <div className="mt-12 space-y-3">
-                  <div className="flex justify-between text-sm font-bold">
-                    <span className="text-white/60">
-                      <motion.span
-                        key={progress}
-                        initial={{ opacity: 0, y: -6 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="inline-block"
-                      >
-                        {progress}%
-                      </motion.span>{' '}
-                      Overall Progress
-                    </span>
-                    <span className="text-amber-400">
-                      {agents.find(
-                        (a) => a.status === AgentStatus.IN_PROGRESS,
-                      )?.name ?? 'Initializing…'}{' '}
-                      is active
-                    </span>
-                  </div>
-                  <div className="h-3 bg-black/30 rounded-full overflow-hidden border border-white/5 relative">
+                  {agents.map((agent, idx) => (
                     <motion.div
-                      className="h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-amber-500 relative"
-                      initial={{ width: 0 }}
-                      animate={{ width: `${progress}%` }}
-                      transition={{ duration: 0.8, ease: 'easeOut' }}
+                      key={agent.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: idx * 0.08, duration: 0.45, ease: EASE_OUT }}
+                      className="w-1/5"
                     >
-                      {/* Shimmer overlay */}
-                      <motion.div
-                        className="absolute inset-0 bg-gradient-to-r from-transparent via-white/25 to-transparent"
-                        animate={{ x: ['-100%', '200%'] }}
-                        transition={{ repeat: Infinity, duration: 2, ease: 'linear' }}
-                      />
+                      <AgentCell agent={agent} isActive={agent.status === AgentStatus.IN_PROGRESS} />
                     </motion.div>
-                  </div>
+                  ))}
                 </div>
-              </GlassCard>
+              </BezelCard>
 
-              {/* Live log */}
-              <GlassCard className="p-0 overflow-hidden border-indigo-500/20">
-                <div className="px-6 py-4 bg-black/40 border-b border-white/10 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Terminal size={18} className="text-indigo-400" />
-                    <h3 className="font-bold">Live Activity</h3>
+              {/* Live terminal log */}
+              <BezelCard innerClassName="overflow-hidden">
+                <div className="px-5 py-3.5 border-b border-white/[0.06] flex items-center justify-between bg-white/[0.02]">
+                  <div className="flex items-center gap-2.5">
+                    <Terminal size={14} strokeWidth={1.5} className="text-indigo-400" />
+                    <span className="text-xs font-semibold text-white/60" style={{ fontFamily: 'var(--font-display)' }}>Live Activity</span>
                   </div>
                   <button
                     onClick={() => setLogs([])}
-                    className="text-[10px] uppercase tracking-widest font-bold px-3 py-1 bg-white/5 hover:bg-white/10 rounded-md transition-colors"
+                    className="text-[10px] uppercase tracking-widest font-bold px-3 py-1 bg-white/[0.04] hover:bg-white/[0.08] rounded-full transition-colors text-white/30 hover:text-white/60"
                   >
                     Clear
                   </button>
                 </div>
-                <div className="h-[300px] overflow-y-auto p-6 font-mono text-sm space-y-2 scrollbar-thin scrollbar-thumb-white/10">
+                <div className="h-[280px] overflow-y-auto p-5 font-mono text-[11px] space-y-1.5 scrollbar-hide">
+                  {logs.length === 0 && (
+                    <p className="text-white/20 text-center mt-8">Awaiting pipeline events…</p>
+                  )}
                   {logs.map((log, i) => (
-                    <div
+                    <motion.div
                       key={i}
-                      className="flex gap-4 animate-in fade-in slide-in-from-left-2 duration-300"
+                      initial={{ opacity: 0, x: -8 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ duration: 0.25 }}
+                      className="flex gap-3"
                     >
-                      <span className="text-white/30 shrink-0">
-                        {log.timestamp}
-                      </span>
-                      <span
-                        className={`font-bold shrink-0 w-36 ${
-                          log.agent === 'Researcher'
-                            ? 'text-emerald-400'
-                            : log.agent === 'Analyst'
-                              ? 'text-amber-400'
-                              : log.agent === 'Fact Checker'
-                                ? 'text-indigo-400'
-                                : log.agent === 'Report Generator'
-                                  ? 'text-purple-400'
-                                  : log.agent === 'System'
-                                    ? 'text-cyan-400'
-                                    : 'text-white/60'
-                        }`}
-                      >
+                      <span className="text-white/20 shrink-0 tabular-nums">{log.timestamp}</span>
+                      <span className={`font-bold shrink-0 w-32 ${
+                        log.agent === 'Researcher' ? 'text-emerald-400'
+                        : log.agent === 'Analyst' ? 'text-amber-400'
+                        : log.agent === 'Fact Checker' ? 'text-blue-400'
+                        : log.agent === 'Report Generator' ? 'text-purple-400'
+                        : log.agent === 'System' ? 'text-cyan-400'
+                        : 'text-white/40'
+                      }`}>
                         [{log.agent}]
                       </span>
-                      <span
-                        className={
-                          log.type === 'error'
-                            ? 'text-rose-400'
-                            : log.type === 'success'
-                              ? 'text-emerald-400'
-                              : log.type === 'warning'
-                                ? 'text-amber-300'
-                                : 'text-white/80'
-                        }
-                      >
+                      <span className={
+                        log.type === 'error' ? 'text-rose-400'
+                        : log.type === 'success' ? 'text-emerald-400'
+                        : log.type === 'warning' ? 'text-amber-400'
+                        : 'text-white/60'
+                      }>
                         {log.message}
                       </span>
-                    </div>
+                    </motion.div>
                   ))}
                   <div ref={logEndRef} />
                 </div>
-              </GlassCard>
+              </BezelCard>
             </motion.div>
           )}
 
-          {/* ============================================================ */}
-          {/*  HISTORY VIEW                                                 */}
-          {/* ============================================================ */}
+          {/* ────────────────────────────────────────────
+              HISTORY VIEW
+          ──────────────────────────────────────────── */}
           {view === 'history' && (
             <motion.div
               key="history"
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="space-y-8"
+              exit={{ opacity: 0, y: -16 }}
+              transition={{ duration: 0.5, ease: EASE_OUT }}
+              className="space-y-6"
             >
-              <div className="flex items-center justify-between mb-8">
-                <h2 className="text-3xl font-black tracking-tight">
-                  Research History
-                </h2>
-                <button
-                  onClick={() => setView('landing')}
-                  className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-sm font-bold transition-all border border-white/10"
-                >
-                  <Plus size={16} />
+              <div className="flex items-end justify-between pt-4 mb-8">
+                <div>
+                  <Eyebrow><History size={10} /> Sessions</Eyebrow>
+                  <h2 className="text-3xl md:text-4xl font-extrabold mt-3 tracking-tight" style={{ fontFamily: 'var(--font-display)' }}>
+                    Research History
+                  </h2>
+                </div>
+                <PillButton variant="ghost" onClick={() => setView('landing')}>
+                  <Plus size={14} strokeWidth={2} />
                   New Research
-                </button>
+                </PillButton>
               </div>
 
               {history.length === 0 ? (
-                <GlassCard className="p-12 text-center">
-                  <History
-                    size={48}
-                    className="mx-auto mb-4 text-white/20"
-                  />
-                  <p className="text-xl text-white/40">
-                    No research history found.
+                <BezelCard innerClassName="py-20 text-center">
+                  <History size={40} strokeWidth={1} className="mx-auto mb-4 text-white/15" />
+                  <p className="text-white/30 text-lg font-medium" style={{ fontFamily: 'var(--font-display)' }}>
+                    No research history yet
                   </p>
                   <button
                     onClick={() => setView('landing')}
-                    className="mt-6 text-indigo-400 font-bold hover:underline"
+                    className="mt-4 text-indigo-400 text-sm font-semibold hover:text-indigo-300 transition-colors"
                   >
-                    Start your first research task
+                    Start your first research →
                   </button>
-                </GlassCard>
+                </BezelCard>
               ) : (
-                <div className="grid gap-4">
-                  {history.map((item) => (
+                <div className="grid gap-3">
+                  {history.map((item, i) => (
                     <motion.div
                       key={item.id}
-                      whileHover={{ scale: 1.01 }}
-                      className="cursor-pointer"
-                      onClick={async () => {
-                        try {
-                          const res =
-                            await researchService.getResearchResults(
-                              item.id,
-                            );
-                          const r = mapResultsToReport(
-                            res as Record<string, unknown>,
-                          );
-                          if (r) {
-                            setReport(r);
-                            setOptions(item.options);
-                            setView('report');
-                          }
-                        } catch {
-                          /* session may not have results yet */
-                        }
-                      }}
+                      initial={{ opacity: 0, y: 12 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: i * 0.05, duration: 0.4, ease: EASE_OUT }}
                     >
-                      <GlassCard className="p-6 flex items-center justify-between group hover:border-indigo-500/50 transition-all">
-                        <div className="space-y-1">
-                          <h3 className="text-lg font-bold group-hover:text-indigo-400 transition-colors">
-                            {item.query}
-                          </h3>
-                          <div className="flex items-center gap-4 text-xs text-white/40 font-medium">
-                            <span>
-                              {new Date(item.timestamp).toLocaleString()}
-                            </span>
-                            <span className="px-2 py-0.5 bg-white/5 rounded uppercase tracking-wider">
-                              {item.options.format}
-                            </span>
-                            <span className="px-2 py-0.5 bg-white/5 rounded uppercase tracking-wider">
-                              {item.options.citationStyle}
-                            </span>
+                      <div
+                        className="p-[1.5px] bg-white/[0.03] border border-white/[0.06] rounded-2xl hover:border-indigo-500/30 transition-all duration-500 cursor-pointer group"
+                        onClick={async () => {
+                          try {
+                            const res = await researchService.getResearchResults(item.id);
+                            const r = mapResultsToReport(res as Record<string, unknown>);
+                            if (r) { setReport(r); setOptions(item.options); setView('report'); }
+                          } catch { /* no results yet */ }
+                        }}
+                      >
+                        <div className="bg-[#0a0a12] rounded-[calc(1rem-1.5px)] px-5 py-4 flex items-center justify-between gap-4">
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-semibold text-sm text-white/80 group-hover:text-white transition-colors truncate" style={{ fontFamily: 'var(--font-display)' }}>
+                              {item.query}
+                            </h3>
+                            <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+                              <span className="text-[10px] text-white/25">
+                                {new Date(item.timestamp).toLocaleString()}
+                              </span>
+                              <span className="px-2 py-0.5 bg-white/[0.04] rounded-full text-[9px] uppercase tracking-wider text-white/30 border border-white/[0.06]">
+                                {item.options.format}
+                              </span>
+                              <span className="px-2 py-0.5 bg-white/[0.04] rounded-full text-[9px] uppercase tracking-wider text-white/30 border border-white/[0.06]">
+                                {item.options.citationStyle}
+                              </span>
+                            </div>
                           </div>
-                        </div>
-                        <div className="flex items-center gap-4">
-                          <div className="text-right hidden sm:block">
-                            <p className="text-[10px] uppercase tracking-widest font-bold text-white/20">
-                              Status
-                            </p>
-                            <p
-                              className={`text-xs font-bold ${
-                                item.status === 'completed'
-                                  ? 'text-emerald-400'
-                                  : item.status === 'failed'
-                                    ? 'text-rose-400'
-                                    : 'text-amber-400'
-                              }`}
-                            >
+                          <div className="flex items-center gap-3 shrink-0">
+                            <span className={`text-[10px] font-bold uppercase tracking-wider ${
+                              item.status === 'completed' ? 'text-emerald-400'
+                              : item.status === 'failed' ? 'text-rose-400'
+                              : 'text-amber-400'
+                            }`}>
                               {item.status}
-                            </p>
-                          </div>
-                          <div className="p-2 bg-white/5 rounded-lg group-hover:bg-indigo-500/20 transition-all">
-                            <ChevronDown
-                              className="-rotate-90 text-white/40 group-hover:text-indigo-400"
-                              size={20}
-                            />
+                            </span>
+                            <div className="w-7 h-7 rounded-full bg-white/[0.04] group-hover:bg-indigo-500/15 flex items-center justify-center transition-colors duration-300">
+                              <ArrowUpRight size={13} strokeWidth={1.5} className="text-white/30 group-hover:text-indigo-400 transition-colors" />
+                            </div>
                           </div>
                         </div>
-                      </GlassCard>
+                      </div>
                     </motion.div>
                   ))}
                 </div>
@@ -1149,250 +1091,218 @@ ${report.sources?.length ? `<h2>Sources</h2><ul>${report.sources.map((s) => `<li
             </motion.div>
           )}
 
-          {/* ============================================================ */}
-          {/*  REPORT VIEW                                                  */}
-          {/* ============================================================ */}
+          {/* ────────────────────────────────────────────
+              REPORT VIEW
+          ──────────────────────────────────────────── */}
           {view === 'report' && report && (
             <motion.div
               key="report"
-              initial={{ opacity: 0, scale: 0.98 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="space-y-8"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.55, ease: EASE_OUT }}
+              className="space-y-6"
             >
-              <div className="text-center space-y-4 mb-12">
-                <h1 className="text-4xl font-black tracking-tight text-white leading-tight">
+              {/* Report header */}
+              <div className="pt-4 pb-2">
+                <Eyebrow><CheckCircle2 size={10} /> Report Ready</Eyebrow>
+                <h1
+                  className="text-2xl md:text-3xl lg:text-4xl font-extrabold mt-3 mb-5 tracking-tight leading-tight max-w-4xl"
+                  style={{ fontFamily: 'var(--font-display)' }}
+                >
                   {report.title}
                 </h1>
-                <div className="flex items-center justify-center gap-3 flex-wrap">
-                  <button
-                    onClick={exportMarkdown}
-                    className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-sm font-bold transition-all border border-white/10"
-                  >
-                    <Download size={16} />
-                    Export Markdown
-                  </button>
-                  <button
-                    onClick={exportHTML}
-                    className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-sm font-bold transition-all border border-white/10"
-                  >
-                    <Download size={16} />
-                    Export HTML
-                  </button>
-                  <button
-                    onClick={() => setView('landing')}
-                    className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-sm font-bold transition-all shadow-lg shadow-indigo-500/20"
-                  >
-                    <Plus size={16} />
+
+                {/* Quality score + actions */}
+                <div className="flex flex-wrap items-center gap-3">
+                  {report.quality_score != null && (
+                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-emerald-500/25 bg-emerald-500/[0.08]">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400">
+                        Quality {(report.quality_score * 100).toFixed(0)}%
+                      </span>
+                    </div>
+                  )}
+
+                  <PillButton variant="ghost" onClick={exportMarkdown}>
+                    <Download size={13} strokeWidth={1.5} /> Markdown
+                  </PillButton>
+                  <PillButton variant="ghost" onClick={exportHTML}>
+                    <Download size={13} strokeWidth={1.5} /> HTML
+                  </PillButton>
+                  <PillButton onClick={() => setView('landing')}>
+                    <Plus size={13} strokeWidth={2} />
                     New Research
-                  </button>
+                    <span className="w-6 h-6 rounded-full bg-black/20 flex items-center justify-center group-hover:translate-x-0.5 transition-transform" style={{ transitionTimingFunction: `cubic-bezier(${EASE_OUT.join(',')})`, transitionDuration: '400ms' }}>
+                      <ArrowUpRight size={12} strokeWidth={2} />
+                    </span>
+                  </PillButton>
                 </div>
               </div>
 
-              {/* Report content */}
-              <div className="bg-white rounded-2xl shadow-2xl text-slate-900 overflow-hidden">
-                <div className="bg-slate-50 border-b border-slate-200 px-8 py-4 flex gap-8">
-                  {(['Report', 'Findings', 'Sources'] as const).map(
-                    (tab) => (
-                      <button
-                        key={tab}
-                        onClick={() => setReportTab(tab)}
-                        className={`text-sm font-bold pb-2 border-b-2 transition-all ${
-                          reportTab === tab
-                            ? 'border-indigo-600 text-indigo-600'
-                            : 'border-transparent text-slate-400 hover:text-slate-600'
-                        }`}
-                      >
-                        {tab}
-                        {tab === 'Sources' && report.sources
-                          ? ` (${report.sources.length})`
-                          : tab === 'Findings' && report.findings
-                            ? ` (${report.findings.length})`
-                            : ''}
-                      </button>
-                    ),
-                  )}
+              {/* Report content panel */}
+              <BezelCard innerClassName="overflow-hidden">
+                {/* Tab bar */}
+                <div className="px-6 py-0 border-b border-white/[0.06] flex items-center gap-0 bg-white/[0.015]">
+                  {(['Report', 'Findings', 'Sources'] as const).map((tab) => (
+                    <button
+                      key={tab}
+                      onClick={() => setReportTab(tab)}
+                      className={`relative px-5 py-4 text-xs font-semibold transition-colors duration-300 ${
+                        reportTab === tab ? 'text-white' : 'text-white/35 hover:text-white/60'
+                      }`}
+                      style={{ fontFamily: 'var(--font-display)' }}
+                    >
+                      {tab}
+                      {tab === 'Sources' && report.sources ? ` (${report.sources.length})` : ''}
+                      {tab === 'Findings' && report.findings ? ` (${report.findings.length})` : ''}
+                      {reportTab === tab && (
+                        <motion.div
+                          layoutId="report-tab-indicator"
+                          className="absolute bottom-0 left-4 right-4 h-px bg-indigo-400"
+                          transition={{ duration: 0.3, ease: EASE_OUT }}
+                        />
+                      )}
+                    </button>
+                  ))}
                 </div>
 
-                <div className="p-8 md:p-12 max-w-4xl mx-auto prose prose-slate prose-headings:font-black prose-h2:text-3xl prose-h3:text-xl prose-p:text-slate-600 prose-li:text-slate-600">
+                {/* Content area — white panel for readability */}
+                <div className="bg-white min-h-[500px]">
+                  <div className="p-6 md:p-10 max-w-4xl mx-auto report-prose">
 
-                  {/* ---- REPORT TAB ---- */}
-                  {reportTab === 'Report' && (
-                    <>
-                      {/* Table of Contents */}
-                      {report.tableOfContents &&
-                        report.tableOfContents.length > 0 && (
-                          <section className="mb-12">
-                            <h2 className="text-2xl font-black mb-6">
+                    {/* ── REPORT TAB ── */}
+                    {reportTab === 'Report' && (
+                      <>
+                        {report.tableOfContents && report.tableOfContents.length > 0 && (
+                          <section className="mb-10 p-5 bg-indigo-50 rounded-2xl border border-indigo-100">
+                            <p className="text-[10px] uppercase tracking-[0.2em] font-bold text-indigo-500 mb-3">
                               Table of Contents
-                            </h2>
-                            <ul className="space-y-2 list-none p-0">
-                              {report.tableOfContents.map(
-                                (item, i) => (
-                                  <li
-                                    key={i}
-                                    className="flex items-center gap-3 text-indigo-600 font-medium"
-                                  >
-                                    <div className="w-1 h-1 bg-indigo-600 rounded-full" />
-                                    {item}
-                                  </li>
-                                ),
-                              )}
+                            </p>
+                            <ul className="space-y-2 list-none p-0 m-0">
+                              {report.tableOfContents.map((item, i) => (
+                                <li key={i} className="flex items-center gap-2.5 text-sm text-indigo-700 font-medium">
+                                  <span className="text-[10px] font-bold text-indigo-300 tabular-nums w-5 shrink-0">{String(i + 1).padStart(2, '0')}</span>
+                                  {item}
+                                </li>
+                              ))}
                             </ul>
                           </section>
                         )}
 
-                      {/* Executive Summary */}
-                      <section className="mb-12">
-                        <h2 className="text-3xl font-black mb-4">
-                          Executive Summary
-                        </h2>
-                        <div className="text-lg leading-relaxed text-slate-700">
-                          <Markdown>{report.executiveSummary}</Markdown>
-                        </div>
-                      </section>
+                        <section className="mb-10">
+                          <p className="text-[10px] uppercase tracking-[0.2em] font-bold text-slate-400 mb-3">Executive Summary</p>
+                          <div className="text-base leading-relaxed">
+                            <Markdown>{report.executiveSummary}</Markdown>
+                          </div>
+                        </section>
 
-                      {/* Methodology */}
-                      {report.methodology && (
-                        <section className="mb-12">
-                          <h2 className="text-3xl font-black mb-4">
-                            Research Methodology
-                          </h2>
-                          <div className="bg-slate-50 p-6 rounded-xl border border-slate-100 italic text-slate-600">
+                        {report.methodology && (
+                          <section className="mb-10 p-5 bg-slate-50 rounded-2xl border border-slate-100 italic text-slate-600 text-sm leading-relaxed">
+                            <p className="text-[10px] uppercase tracking-[0.2em] font-bold not-italic text-slate-400 mb-3">Methodology</p>
                             <Markdown>{report.methodology}</Markdown>
-                          </div>
-                        </section>
-                      )}
-
-                      {/* Sections */}
-                      {report.sections?.map((section, i) => (
-                        <section key={i} className="mb-12">
-                          <h2 className="text-3xl font-black mb-4">
-                            {section.heading}
-                          </h2>
-                          <div className="space-y-4">
-                            <Markdown>{section.content}</Markdown>
-                          </div>
-                        </section>
-                      ))}
-                    </>
-                  )}
-
-                  {/* ---- FINDINGS TAB ---- */}
-                  {reportTab === 'Findings' && (
-                    <section>
-                      <h2 className="text-2xl font-black mb-6">
-                        Key Findings
-                        {report.findings && (
-                          <span className="ml-3 text-sm font-medium text-slate-400">
-                            ({report.findings.length})
-                          </span>
+                          </section>
                         )}
-                      </h2>
-                      {report.findings && report.findings.length > 0 ? (
-                        <ul className="space-y-4">
-                          {report.findings.map((f, i) => (
-                            <li
-                              key={i}
-                              className="flex items-start gap-3 p-4 bg-emerald-50 rounded-lg border border-emerald-100"
-                            >
-                              <CheckCircle2
-                                size={18}
-                                className="text-emerald-500 mt-0.5 shrink-0"
-                              />
-                              <span className="text-slate-700">{f}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <p className="text-slate-400 italic">
-                          No findings were recorded for this research session.
+
+                        {report.sections?.map((section, i) => (
+                          <section key={i} className="mb-10">
+                            <Markdown>{`## ${section.heading}\n\n${section.content}`}</Markdown>
+                          </section>
+                        ))}
+                      </>
+                    )}
+
+                    {/* ── FINDINGS TAB ── */}
+                    {reportTab === 'Findings' && (
+                      <section>
+                        <p className="text-[10px] uppercase tracking-[0.2em] font-bold text-slate-400 mb-6">
+                          Key Findings {report.findings && <span className="text-slate-300">({report.findings.length})</span>}
                         </p>
-                      )}
-                    </section>
-                  )}
-
-                  {/* ---- SOURCES TAB ---- */}
-                  {reportTab === 'Sources' && (
-                    <section>
-                      <h2 className="text-2xl font-black mb-6">
-                        Sources & References
-                        {report.sources && (
-                          <span className="ml-3 text-sm font-medium text-slate-400">
-                            ({report.sources.length})
-                          </span>
+                        {report.findings && report.findings.length > 0 ? (
+                          <ul className="space-y-3">
+                            {report.findings.map((f, i) => (
+                              <li key={i} className="flex items-start gap-3 p-4 bg-emerald-50 rounded-xl border border-emerald-100">
+                                <div className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center shrink-0 mt-0.5">
+                                  <CheckCircle2 size={12} className="text-emerald-600" strokeWidth={2} />
+                                </div>
+                                <span className="text-sm text-slate-700 leading-relaxed">{f}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p className="text-slate-400 italic text-sm">No findings recorded for this session.</p>
                         )}
-                      </h2>
-                      {report.sources && report.sources.length > 0 ? (
-                        <div className="grid gap-4">
-                          {report.sources.map((source, i) => (
-                            <div
-                              key={i}
-                              className="p-4 bg-slate-50 rounded-lg border border-slate-100 hover:border-indigo-200 transition-colors"
-                            >
-                              <div className="flex items-start justify-between gap-4">
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2 flex-wrap mb-1">
-                                    <h4 className="font-bold text-slate-900">
-                                      {i + 1}. {source.title}
-                                    </h4>
-                                    {source.credibilityScore != null && (
-                                      <span
-                                        className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
-                                          source.credibilityScore >= 0.7
-                                            ? 'bg-emerald-100 text-emerald-700'
-                                            : source.credibilityScore >= 0.4
-                                              ? 'bg-amber-100 text-amber-700'
-                                              : 'bg-rose-100 text-rose-700'
-                                        }`}
-                                      >
-                                        {(source.credibilityScore * 100).toFixed(0)}% credible
-                                      </span>
+                      </section>
+                    )}
+
+                    {/* ── SOURCES TAB ── */}
+                    {reportTab === 'Sources' && (
+                      <section>
+                        <p className="text-[10px] uppercase tracking-[0.2em] font-bold text-slate-400 mb-6">
+                          Sources & References {report.sources && <span className="text-slate-300">({report.sources.length})</span>}
+                        </p>
+                        {report.sources && report.sources.length > 0 ? (
+                          <div className="grid gap-3">
+                            {report.sources.map((source, i) => (
+                              <div key={i} className="p-4 bg-slate-50 rounded-xl border border-slate-100 hover:border-indigo-200 transition-colors">
+                                <div className="flex items-start justify-between gap-4">
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 flex-wrap mb-1">
+                                      <h4 className="font-semibold text-sm text-slate-900 leading-tight">
+                                        {i + 1}. {source.title}
+                                      </h4>
+                                      {source.credibilityScore != null && (
+                                        <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                                          source.credibilityScore >= 0.7 ? 'bg-emerald-100 text-emerald-700'
+                                          : source.credibilityScore >= 0.4 ? 'bg-amber-100 text-amber-700'
+                                          : 'bg-rose-100 text-rose-700'
+                                        }`}>
+                                          {(source.credibilityScore * 100).toFixed(0)}% credible
+                                        </span>
+                                      )}
+                                      {source.apiSource && (
+                                        <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700">
+                                          {source.apiSource}
+                                        </span>
+                                      )}
+                                    </div>
+                                    {source.author && (
+                                      <p className="text-xs text-slate-500 mb-1">By {source.author}</p>
                                     )}
-                                    {source.apiSource && (
-                                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700">
-                                        {source.apiSource}
-                                      </span>
+                                    {source.url && (
+                                      <a href={source.url} target="_blank" rel="noreferrer"
+                                        className="text-xs text-indigo-600 hover:text-indigo-800 hover:underline break-all flex items-center gap-1">
+                                        <ExternalLink size={11} strokeWidth={1.5} className="shrink-0" />
+                                        {source.url}
+                                      </a>
                                     )}
                                   </div>
-                                  {source.author && (
-                                    <p className="text-xs text-slate-500 mb-1">
-                                      By {source.author}
-                                    </p>
-                                  )}
-                                  {source.url && (
-                                    <a
-                                      href={source.url}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="text-xs text-indigo-600 hover:text-indigo-800 hover:underline break-all flex items-center gap-1"
-                                    >
-                                      <ExternalLink size={12} className="shrink-0" />
-                                      {source.url}
-                                    </a>
-                                  )}
                                 </div>
                               </div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-slate-400 italic">
-                          No sources were recorded for this research session.
-                        </p>
-                      )}
-                    </section>
-                  )}
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-slate-400 italic text-sm">No sources recorded for this session.</p>
+                        )}
+                      </section>
+                    )}
 
+                  </div>
                 </div>
-              </div>
+              </BezelCard>
             </motion.div>
           )}
+
         </AnimatePresence>
       </main>
 
-      {/* ---- Footer ---- */}
-      <footer className="py-12 text-center text-white/30 text-xs tracking-widest uppercase font-bold">
-        &copy; {new Date().getFullYear()} Multi-Agent Research Assistant
+      {/* ══════════════════════════════════════════════════
+          FOOTER
+      ══════════════════════════════════════════════════ */}
+      <footer className="py-10 text-center">
+        <p className="text-[10px] uppercase tracking-[0.2em] font-semibold text-white/15">
+          &copy; {new Date().getFullYear()} Research Assistant — Multi-Agent AI
+        </p>
       </footer>
     </div>
   );

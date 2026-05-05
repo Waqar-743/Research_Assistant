@@ -387,7 +387,17 @@ If none are relevant, respond with "NONE"."""
         # Deduplicate similar findings
         if len(all_findings) > 10:
             all_findings = await self._deduplicate_findings(query, all_findings)
-        
+
+        # Hard emergency fallback: if LLM extraction produced 0 findings
+        # but we have sources, create minimal findings from source data
+        # so the pipeline never runs with an empty findings list.
+        if len(all_findings) == 0 and sources:
+            logger.warning(
+                f"[EXTRACT] LLM extraction returned 0 findings across all batches. "
+                f"Creating emergency findings from {len(sources)} source titles/snippets."
+            )
+            all_findings = self._create_emergency_findings_from_sources(query, sources)
+
         return all_findings
     
     async def _extract_from_batch(
@@ -666,6 +676,31 @@ Respond with ONLY the JSON array:"""
         logger.info(f"[EXTRACT] Text-format fallback parsed {len(findings)} findings")
         return findings
     
+    @staticmethod
+    def _create_emergency_findings_from_sources(
+        query: str,
+        sources: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        """Create minimal findings directly from source titles/snippets when LLM extraction fails."""
+        findings: List[Dict[str, Any]] = []
+        for i, source in enumerate(sources[:20]):
+            title = (source.get("title") or "").strip()
+            snippet = (source.get("snippet") or source.get("description") or "").strip()
+            url = source.get("url", "")
+            api_src = source.get("api_source", "")
+            text = snippet if snippet else title
+            if not text:
+                continue
+            findings.append({
+                "content": text[:600],
+                "type": "insight",
+                "source_refs": str([i + 1]),
+                "resolved_sources": [{"title": title, "url": url, "api_source": api_src}],
+                "preliminary_credibility": "medium",
+            })
+        logger.info(f"[EXTRACT] Emergency fallback created {len(findings)} findings from source data")
+        return findings
+
     async def _deduplicate_findings(
         self,
         query: str,
