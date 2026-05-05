@@ -30,7 +30,7 @@ services:
         value: research_assistant_db
 
       # ── Redis ────────────────────────────────────────────────────────
-      #    Paste your Redis URL (Heroku / Upstash / Render Redis)
+      #    Paste your Redis URL (Render Redis / Upstash / other managed Redis)
       - key: REDIS_URL
         sync: false
       - key: CACHE_TTL

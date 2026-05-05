@@ -48,7 +48,7 @@ class RedisCache:
             return
 
         try:
-            # For rediss:// URLs (Heroku Redis), we must accept self-signed certs.
+            # For rediss:// URLs (managed Redis with TLS), we must accept self-signed certs.
             # redis-py accepts `ssl_cert_reqs` as a string via from_url().
             kwargs: Dict[str, Any] = {
                 "decode_responses": True,

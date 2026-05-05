@@ -3,7 +3,33 @@
     "allow": [
       "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\dell\\\\Research-Assistant\" -Recurse -Directory -ErrorAction SilentlyContinue)",
       "Bash(Select-Object -First 20)",
-      "Bash(xargs grep *)"
+      "Bash(xargs grep *)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\dell\\\\Research-Assistant\" -Recurse -Force)",
+      "Bash(Select-Object FullName, PSIsContainer)",
+      "Bash(Sort-Object FullName)",
+      "Bash(ConvertTo-Json)",
+      "Bash(npm run *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(Start-Sleep -Seconds 5)",
+      "Bash(Write-Host \"Dev server started\")",
+      "Bash(curl -s http://localhost:5500/)",
+      "Bash(curl -s \"http://localhost:5500/src/index.css\")",
+      "Bash(python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload)",
+      "Bash(echo \"Backend PID: $!\")",
+      "Bash(curl -s http://localhost:8000/api/v1/health/live)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5500/)",
+      "Bash(echo \"Frontend PID: $!\")",
+      "Bash(curl -s -o /dev/null -w \"Frontend HTTP status: %{http_code}\" http://localhost:5500/)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('OK' if d['data']['alive'] else 'FAIL'\\)\")",
+      "Bash(curl -s http://localhost:8000/)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('status:', d['status']\\)\")",
+      "Bash(curl -s http://localhost:8000/api/v1/history/)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('HTTP', d.get\\('status','?'\\), '|', d.get\\('message','?'\\)\\)\")",
+      "Bash(curl -s -o /dev/null -w \"WS route HTTP: %{http_code}\" http://localhost:8000/ws/test-session)",
+      "Bash(curl -sv --max-time 10 https://research-assistant-backend.onrender.com/)",
+      "Bash(git pull *)"
     ]
   }
 }

@@ -23,7 +23,7 @@ Full-stack research platform with a FastAPI backend and a React + Vite frontend.
 | **Backend** | FastAPI · Beanie ODM · Motor · MongoDB Atlas |
 | **Frontend** | React 19 · TypeScript · Vite · Tailwind CSS 4 |
 | **AI Routing** | OpenRouter (DeepSeek, Claude 3.5 Sonnet, GPT-4o) |
-| **Cache / Pub-Sub** | Redis (Heroku Redis / Upstash) |
+| **Cache / Pub-Sub** | Redis (Render Redis / Upstash) |
 | **Observability** | Sentry (FastAPI + Starlette integrations) |
 | **Realtime** | WebSocket `/ws/{session_id}` |
 
@@ -32,7 +32,7 @@ Full-stack research platform with a FastAPI backend and a React + Vite frontend.
 ```
 ┌─────────────┐    WebSocket / REST     ┌──────────────┐
 │  React App  │ ◄──────────────────────► │  FastAPI API │
-│  (Vercel)   │                          │  (Heroku)    │
+│ (GitHub Pages) │                        │  (Render)    │
 └─────────────┘                          └──────┬───────┘
                                                 │
                           ┌─────────────────────┼─────────────────────┐
@@ -223,43 +223,33 @@ GitHub Actions now runs on every push and pull request:
 
 | Service | Platform | Notes |
 |---------|----------|-------|
-| Backend | **Heroku** | Dyno runs `uvicorn app.main:app --host 0.0.0.0 --port $PORT` |
-| Frontend | **Vercel** | Auto-deploys from `frontend/` on push |
+| Backend | **Render** | Uses `render.yaml` to run `uvicorn app.main:app --host 0.0.0.0 --port $PORT` |
+| Frontend | **GitHub Pages** | Auto-deploys from `frontend/` on push |
 | Database | **MongoDB Atlas** | Free M0 cluster via GitHub Student Pack |
-| Cache | **Heroku Redis** or **Upstash** | Attach as Heroku add-on or separate |
+| Cache | **Render Redis** or **Upstash** | Managed Redis instance |
 | Monitoring | **Sentry** | Free tier via GitHub Student Pack |
 
-### Heroku Backend Deployment
+### Render Backend Deployment
 
-1. Create a Heroku app and add the **Heroku Redis** add-on.
-2. Set config vars:
+1. Create a new Render Web Service from this repo and select the `render.yaml` blueprint.
+2. Set required env vars in Render:
    ```
    OPENROUTER_API_KEY=...
    MONGODB_URL=mongodb+srv://...
    MONGODB_DATABASE=research_assistant_db
+   REDIS_URL=rediss://...
    SENTRY_DSN=https://...
+   SECRET_KEY=...
    ```
-   `REDIS_URL` is auto-set by the Heroku Redis add-on.
-3. Add a `Procfile`:
-   ```
-   web: uvicorn app.main:app --host 0.0.0.0 --port $PORT
-   ```
-4. Push to Heroku: `git push heroku main`
+3. (Optional) Create a Render deploy hook and save it as the GitHub Actions secret `RENDER_DEPLOY_HOOK`.
 
-Once deployed, the backend runs entirely on Heroku — you do **not** run it locally in production. Local execution is only for development.
+Once deployed, the backend runs on Render. Local execution is only for development.
 
-### GitHub Actions CI/CD Deployments
+### GitHub Pages Frontend Deployment
 
-The repository includes GitHub Actions workflows to automatically deploy the frontend to **GitHub Pages** and the backend to **Heroku**.
-
-1. **Frontend**: Pushes to `main` branch will automatically build and deploy the React app to GitHub Pages. Set `VITE_API_URL` as a repository secret.
-2. **Backend**: Pushes to `main` branch will deploy the Docker image to Heroku. You need to configure `HEROKU_API_KEY`, `HEROKU_APP_NAME`, and `HEROKU_EMAIL` as repository secrets.
-
-### Vercel Frontend Deployment (Alternative)
-
-1. Import the repo into Vercel; set **Root Directory** to `frontend`.
-2. Set `VITE_API_URL` to your Heroku app URL (e.g. `https://my-app.herokuapp.com`).
-3. Vercel auto-builds with `npm run build` on every push.
+1. Ensure GitHub Actions is enabled for the repo.
+2. Add the GitHub Actions secret `VITE_API_URL` with your Render URL (for example `https://your-service.onrender.com`).
+3. Push to `main` to build and deploy to GitHub Pages.
 
 ### Live links
 
@@ -269,7 +259,7 @@ The repository includes GitHub Actions workflows to automatically deploy the fro
 | **Backend (Render)** | Set up on [Render](https://render.com) using `render.yaml` — see below |
 
 > The frontend is auto-deployed to GitHub Pages on every push to `main`.  
-> The backend deploys to Render — see [Backend Deployment on Render](#heroku-backend-deployment) for setup steps.
+> The backend deploys to Render — see [Render Backend Deployment](#render-backend-deployment) for setup steps.
 
 ## Project Structure
 

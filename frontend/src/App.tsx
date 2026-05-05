@@ -3,7 +3,8 @@ import {
   Search, ChevronDown, User, Database, Cpu, ShieldCheck,
   FileText, Loader2, History, ExternalLink, Download, Plus,
   CheckCircle2, Terminal, AlertCircle, RefreshCw, ArrowUpRight,
-  Sparkles, BookOpen, Menu, X, Globe, Zap,
+  Sparkles, BookOpen, Menu, X, Globe, Zap, Info, Printer,
+  BarChart2, Clock, Target,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Markdown from 'react-markdown';
@@ -14,7 +15,7 @@ import {
 import { researchService } from './services/researchService';
 
 /* ─────────────────────────────────────────────────────────────
-   Backend → frontend report mapper (unchanged logic)
+   Backend → frontend report mapper
 ───────────────────────────────────────────────────────────── */
 function mapResultsToReport(res: Record<string, unknown>): ResearchReport | undefined {
   const report = res.report as Record<string, unknown> | undefined;
@@ -84,7 +85,7 @@ const AGENT_STATUS_MAP: Record<string, AgentStatus> = {
 };
 
 /* ─────────────────────────────────────────────────────────────
-   Scroll-reveal hook
+   Scroll-reveal hook (fixed dep array — runs once on mount)
 ───────────────────────────────────────────────────────────── */
 function useScrollReveal() {
   useEffect(() => {
@@ -95,7 +96,7 @@ function useScrollReveal() {
     );
     els.forEach((el) => io.observe(el));
     return () => io.disconnect();
-  });
+  }, []); // empty dep array — only runs once
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -105,22 +106,17 @@ const SPRING = { type: 'spring', stiffness: 380, damping: 30 } as const;
 const EASE_OUT = [0.32, 0.72, 0, 1] as const;
 
 /* ─────────────────────────────────────────────────────────────
-   SceneBG — fixed OLED background with gradient orbs
+   SceneBG
 ───────────────────────────────────────────────────────── */
 const SceneBG = () => (
   <div className="fixed inset-0 overflow-hidden pointer-events-none" style={{ zIndex: 0 }}>
-    {/* Deep OLED black base */}
     <div className="absolute inset-0 bg-[#030305]" />
-    {/* Purple orb — top left */}
     <div className="absolute -top-[35%] -left-[15%] w-[75%] h-[75%] rounded-full"
       style={{ background: 'radial-gradient(circle, rgba(99,66,245,0.18) 0%, transparent 70%)' }} />
-    {/* Violet orb — right centre */}
     <div className="absolute top-[30%] -right-[20%] w-[65%] h-[65%] rounded-full"
       style={{ background: 'radial-gradient(circle, rgba(139,92,246,0.12) 0%, transparent 70%)' }} />
-    {/* Emerald orb — bottom */}
     <div className="absolute bottom-[-10%] left-[15%] w-[55%] h-[45%] rounded-full"
       style={{ background: 'radial-gradient(circle, rgba(16,185,129,0.07) 0%, transparent 70%)' }} />
-    {/* Subtle grid lines */}
     <div className="absolute inset-0 opacity-[0.025]"
       style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px)', backgroundSize: '60px 60px' }} />
   </div>
@@ -246,7 +242,6 @@ const AgentCell = ({ agent, isActive }: { agent: AgentState; isActive: boolean }
         </div>
       </div>
 
-      {/* Flow dots when complete */}
       {isComplete && (
         <div className="absolute top-[28px] left-[calc(50%+24px)] right-0 h-[2px] pointer-events-none overflow-hidden hidden md:block">
           {[0, 1, 2].map((i) => (
@@ -263,7 +258,7 @@ const AgentCell = ({ agent, isActive }: { agent: AgentState; isActive: boolean }
 };
 
 /* ─────────────────────────────────────────────────────────────
-   Feature card (landing)
+   Feature chip
 ───────────────────────────────────────────────────────── */
 const FeatureChip = ({ icon: Icon, label }: { icon: React.ElementType; label: string }) => (
   <div className="flex items-center gap-2 px-4 py-2 rounded-full text-white/60 text-xs font-medium"
@@ -274,10 +269,471 @@ const FeatureChip = ({ icon: Icon, label }: { icon: React.ElementType; label: st
 );
 
 /* ─────────────────────────────────────────────────────────────
+   About Page
+───────────────────────────────────────────────────────── */
+const AboutPage = ({ onStart }: { onStart: () => void }) => {
+  const agents = [
+    { icon: User, name: 'User Proxy', color: 'indigo', desc: 'Parses and validates your research query, breaks it into sub-questions, and coordinates the overall pipeline.' },
+    { icon: Globe, name: 'Researcher', color: 'sky', desc: 'Queries multiple sources in parallel — academic APIs, news feeds, Wikipedia, and the open web via SerpAPI.' },
+    { icon: Cpu, name: 'Analyst', color: 'amber', desc: 'Synthesises raw data into coherent patterns, cross-references findings, and identifies knowledge gaps.' },
+    { icon: ShieldCheck, name: 'Fact Checker', color: 'emerald', desc: 'Scores each claim for credibility using source authority, corroboration, and recency signals.' },
+    { icon: FileText, name: 'Report Generator', color: 'purple', desc: 'Assembles the final structured report with executive summary, sections, citations, and key findings.' },
+  ];
+
+  const features = [
+    { icon: Globe, title: 'Multi-source Search', desc: 'ArXiv, PubMed, Wikipedia, NewsAPI, SerpAPI and more queried simultaneously.' },
+    { icon: ShieldCheck, title: 'Fact Checking', desc: 'Every claim is verified and scored for credibility before entering the final report.' },
+    { icon: BookOpen, title: 'Citation Styles', desc: 'APA, MLA, Chicago, and Harvard citation formats supported out of the box.' },
+    { icon: Zap, title: 'Real-time Updates', desc: 'WebSocket streaming gives you live agent status and log output as research progresses.' },
+    { icon: BarChart2, title: 'Quality Scoring', desc: 'Reports receive a quality score based on source diversity, coverage depth and credibility.' },
+    { icon: Download, title: 'Export Options', desc: 'Download your report as Markdown or HTML for further editing or sharing.' },
+  ];
+
+  return (
+    <motion.div
+      key="about"
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -12 }}
+      transition={{ duration: 0.4, ease: EASE_OUT }}
+      className="space-y-16 pt-4"
+    >
+      {/* Hero */}
+      <section className="text-center space-y-5">
+        <Eyebrow><Info size={10} /> About Research AI</Eyebrow>
+        <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight leading-tight"
+          style={{ fontFamily: 'var(--font-display)' }}>
+          Five agents. One comprehensive report.
+        </h1>
+        <p className="text-white/50 max-w-2xl mx-auto text-lg leading-relaxed">
+          Research AI is a multi-agent system built on OpenRouter LLMs. Each agent is specialised for one stage of the research pipeline, ensuring depth at every step.
+        </p>
+        <div className="flex justify-center">
+          <PillButton onClick={onStart}>
+            <Sparkles size={14} strokeWidth={2} />
+            Start Researching
+            <span className="w-7 h-7 rounded-full bg-black/20 flex items-center justify-center">
+              <ArrowUpRight size={14} strokeWidth={2} />
+            </span>
+          </PillButton>
+        </div>
+      </section>
+
+      {/* Agent pipeline */}
+      <section>
+        <p className="text-[10px] uppercase tracking-[0.2em] font-bold text-white/25 text-center mb-8">The 5-Stage Pipeline</p>
+        <div className="space-y-4">
+          {agents.map((agent, i) => {
+            const Icon = agent.icon;
+            const colorMap: Record<string, string> = {
+              indigo: 'border-indigo-500/25 bg-indigo-500/[0.07] text-indigo-400',
+              sky: 'border-sky-500/25 bg-sky-500/[0.07] text-sky-400',
+              amber: 'border-amber-500/25 bg-amber-500/[0.07] text-amber-400',
+              emerald: 'border-emerald-500/25 bg-emerald-500/[0.07] text-emerald-400',
+              purple: 'border-purple-500/25 bg-purple-500/[0.07] text-purple-400',
+            };
+            return (
+              <motion.div key={agent.name}
+                initial={{ opacity: 0, x: -12 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: i * 0.07, duration: 0.4, ease: EASE_OUT }}>
+                <BezelCard innerClassName="p-5 flex items-start gap-5">
+                  <div className={`p-3 rounded-xl border shrink-0 ${colorMap[agent.color]}`}>
+                    <Icon size={20} strokeWidth={1.5} />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-[9px] text-white/25 font-bold tabular-nums">0{i + 1}</span>
+                      <h3 className="font-bold text-sm text-white" style={{ fontFamily: 'var(--font-display)' }}>{agent.name}</h3>
+                    </div>
+                    <p className="text-sm text-white/50 leading-relaxed">{agent.desc}</p>
+                  </div>
+                </BezelCard>
+              </motion.div>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* Features */}
+      <section>
+        <p className="text-[10px] uppercase tracking-[0.2em] font-bold text-white/25 text-center mb-8">Features</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {features.map((f, i) => {
+            const Icon = f.icon;
+            return (
+              <motion.div key={f.title}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.05, duration: 0.4, ease: EASE_OUT }}>
+                <BezelCard innerClassName="p-5 h-full">
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 rounded-lg border border-white/[0.07] bg-white/[0.03] text-indigo-400 shrink-0 mt-0.5">
+                      <Icon size={15} strokeWidth={1.5} />
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-sm text-white mb-1" style={{ fontFamily: 'var(--font-display)' }}>{f.title}</h4>
+                      <p className="text-xs text-white/40 leading-relaxed">{f.desc}</p>
+                    </div>
+                  </div>
+                </BezelCard>
+              </motion.div>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* Tech stack */}
+      <section>
+        <BezelCard innerClassName="p-6 md:p-8">
+          <p className="text-[10px] uppercase tracking-[0.2em] font-bold text-white/25 mb-6 text-center">Technology Stack</p>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+            {[
+              { label: 'Backend', value: 'FastAPI + Python 3.11' },
+              { label: 'LLMs', value: 'OpenRouter (DeepSeek, Claude, GPT-4o)' },
+              { label: 'Database', value: 'MongoDB Atlas' },
+              { label: 'Frontend', value: 'React 19 + Vite + Tailwind 4' },
+            ].map((t) => (
+              <div key={t.label} className="space-y-1.5">
+                <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-white/25">{t.label}</p>
+                <p className="text-sm font-semibold text-white/70">{t.value}</p>
+              </div>
+            ))}
+          </div>
+        </BezelCard>
+      </section>
+    </motion.div>
+  );
+};
+
+/* ─────────────────────────────────────────────────────────────
+   Full Report Page
+───────────────────────────────────────────────────────── */
+const ReportPage = ({
+  report, onNew, onBack,
+}: {
+  report: ResearchReport;
+  onNew: () => void;
+  onBack: () => void;
+}) => {
+  const [tab, setTab] = useState<'Report' | 'Findings' | 'Sources'>('Report');
+  const [activeToc, setActiveToc] = useState(0);
+  const sectionRefs = useRef<(HTMLElement | null)[]>([]);
+
+  const exportMarkdown = () => {
+    const md = [
+      `# ${report.title}\n`,
+      `## Executive Summary\n${report.executiveSummary}\n`,
+      report.methodology ? `## Methodology\n${report.methodology}\n` : '',
+      ...(report.sections ?? []).map((s) => `## ${s.heading}\n${s.content}\n`),
+      report.sources?.length
+        ? `## Sources\n${report.sources.map((s) => `- [${s.title}](${s.url})`).join('\n')}` : '',
+    ].join('\n');
+    const a = Object.assign(document.createElement('a'), {
+      href: URL.createObjectURL(new Blob([md], { type: 'text/markdown' })),
+      download: `${report.title?.replace(/\s+/g, '_') ?? 'report'}.md`,
+    });
+    a.click();
+  };
+
+  const exportHTML = () => {
+    const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>${report.title}</title>
+<style>body{font-family:system-ui,sans-serif;max-width:800px;margin:0 auto;padding:2rem;color:#1e293b}h1{color:#4f46e5}a{color:#4f46e5}</style></head><body>
+<h1>${report.title}</h1><h2>Executive Summary</h2><p>${report.executiveSummary}</p>
+${(report.sections ?? []).map((s) => `<h2>${s.heading}</h2><div>${s.content}</div>`).join('')}
+${report.sources?.length ? `<h2>Sources</h2><ul>${report.sources.map((s) => `<li><a href="${s.url}">${s.title}</a></li>`).join('')}</ul>` : ''}
+</body></html>`;
+    const a = Object.assign(document.createElement('a'), {
+      href: URL.createObjectURL(new Blob([html], { type: 'text/html' })),
+      download: `${report.title?.replace(/\s+/g, '_') ?? 'report'}.html`,
+    });
+    a.click();
+  };
+
+  const printReport = () => window.print();
+
+  const scrollToSection = (i: number) => {
+    sectionRefs.current[i]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setActiveToc(i);
+  };
+
+  return (
+    <motion.div
+      key="report"
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -12 }}
+      transition={{ duration: 0.4, ease: EASE_OUT }}
+      className="space-y-6"
+    >
+      {/* Report header */}
+      <div className="pt-4 pb-2">
+        <button
+          onClick={onBack}
+          className="flex items-center gap-1.5 text-xs text-white/35 hover:text-white/70 transition-colors mb-4"
+        >
+          <span className="rotate-180 inline-block"><ArrowUpRight size={12} strokeWidth={1.5} /></span>
+          Back
+        </button>
+
+        <Eyebrow><CheckCircle2 size={10} /> Report Ready</Eyebrow>
+        <h1
+          className="text-2xl md:text-3xl lg:text-4xl font-extrabold mt-3 mb-4 tracking-tight leading-tight max-w-4xl"
+          style={{ fontFamily: 'var(--font-display)' }}
+        >
+          {report.title}
+        </h1>
+
+        {/* Meta row */}
+        <div className="flex flex-wrap items-center gap-3 mb-5">
+          {report.quality_score != null && (
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-emerald-500/25 bg-emerald-500/[0.08]">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400">
+                Quality {(report.quality_score * 100).toFixed(0)}%
+              </span>
+            </div>
+          )}
+          {report.sources && (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-white/[0.08] bg-white/[0.03] text-[10px] text-white/40 font-semibold uppercase tracking-wider">
+              <Database size={10} strokeWidth={1.5} />
+              {report.sources.length} sources
+            </div>
+          )}
+          {report.findings && (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-white/[0.08] bg-white/[0.03] text-[10px] text-white/40 font-semibold uppercase tracking-wider">
+              <Target size={10} strokeWidth={1.5} />
+              {report.findings.length} findings
+            </div>
+          )}
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-white/[0.08] bg-white/[0.03] text-[10px] text-white/40 font-semibold uppercase tracking-wider">
+            <Clock size={10} strokeWidth={1.5} />
+            {new Date().toLocaleDateString()}
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="flex flex-wrap items-center gap-2">
+          <PillButton variant="ghost" onClick={exportMarkdown}>
+            <Download size={13} strokeWidth={1.5} /> Markdown
+          </PillButton>
+          <PillButton variant="ghost" onClick={exportHTML}>
+            <Download size={13} strokeWidth={1.5} /> HTML
+          </PillButton>
+          <PillButton variant="ghost" onClick={printReport}>
+            <Printer size={13} strokeWidth={1.5} /> Print
+          </PillButton>
+          <PillButton onClick={onNew}>
+            <Plus size={13} strokeWidth={2} />
+            New Research
+            <span className="w-6 h-6 rounded-full bg-black/20 flex items-center justify-center">
+              <ArrowUpRight size={12} strokeWidth={2} />
+            </span>
+          </PillButton>
+        </div>
+      </div>
+
+      {/* Main layout: sidebar + content */}
+      <div className="flex gap-6 items-start">
+
+        {/* TOC Sidebar — desktop only */}
+        {report.tableOfContents && report.tableOfContents.length > 0 && (
+          <aside className="hidden lg:block w-56 shrink-0 sticky top-24">
+            <BezelCard innerClassName="p-4">
+              <p className="text-[9px] uppercase tracking-[0.2em] font-bold text-white/25 mb-3">Contents</p>
+              <nav className="space-y-0.5">
+                {['Executive Summary', ...(report.tableOfContents ?? [])].map((item, i) => (
+                  <button
+                    key={i}
+                    onClick={() => scrollToSection(i)}
+                    className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs transition-colors duration-200 leading-tight ${
+                      activeToc === i
+                        ? 'bg-indigo-500/15 text-indigo-300 font-semibold'
+                        : 'text-white/35 hover:text-white/70 hover:bg-white/[0.04]'
+                    }`}
+                  >
+                    {item}
+                  </button>
+                ))}
+              </nav>
+            </BezelCard>
+          </aside>
+        )}
+
+        {/* Report content panel */}
+        <div className="flex-1 min-w-0">
+          <BezelCard innerClassName="overflow-hidden">
+            {/* Tab bar */}
+            <div className="px-6 py-0 border-b border-white/[0.06] flex items-center gap-0 bg-white/[0.015] overflow-x-auto">
+              {(['Report', 'Findings', 'Sources'] as const).map((t) => (
+                <button
+                  key={t}
+                  onClick={() => setTab(t)}
+                  className={`relative px-5 py-4 text-xs font-semibold transition-colors duration-300 whitespace-nowrap ${
+                    tab === t ? 'text-white' : 'text-white/35 hover:text-white/60'
+                  }`}
+                  style={{ fontFamily: 'var(--font-display)' }}
+                >
+                  {t}
+                  {t === 'Sources' && report.sources ? ` (${report.sources.length})` : ''}
+                  {t === 'Findings' && report.findings ? ` (${report.findings.length})` : ''}
+                  {tab === t && (
+                    <motion.div
+                      layoutId="report-tab-indicator"
+                      className="absolute bottom-0 left-4 right-4 h-px bg-indigo-400"
+                      transition={{ duration: 0.3, ease: EASE_OUT }}
+                    />
+                  )}
+                </button>
+              ))}
+            </div>
+
+            {/* Content — white panel */}
+            <div className="bg-white min-h-[500px]">
+              <div className="p-6 md:p-10 max-w-4xl mx-auto report-prose">
+
+                {/* REPORT TAB */}
+                {tab === 'Report' && (
+                  <>
+                    {report.tableOfContents && report.tableOfContents.length > 0 && (
+                      <section
+                        className="mb-10 p-5 bg-indigo-50 rounded-2xl border border-indigo-100"
+                        ref={(el) => { sectionRefs.current[0] = el; }}
+                      >
+                        <p className="text-[10px] uppercase tracking-[0.2em] font-bold text-indigo-500 mb-3">
+                          Table of Contents
+                        </p>
+                        <ul className="space-y-2 list-none p-0 m-0">
+                          {report.tableOfContents.map((item, i) => (
+                            <li key={i} className="flex items-center gap-2.5 text-sm text-indigo-700 font-medium">
+                              <span className="text-[10px] font-bold text-indigo-300 tabular-nums w-5 shrink-0">{String(i + 1).padStart(2, '0')}</span>
+                              {item}
+                            </li>
+                          ))}
+                        </ul>
+                      </section>
+                    )}
+
+                    <section
+                      className="mb-10"
+                      ref={(el) => { sectionRefs.current[report.tableOfContents ? 0 : 0] = el; }}
+                    >
+                      <p className="text-[10px] uppercase tracking-[0.2em] font-bold text-slate-400 mb-3">Executive Summary</p>
+                      <div className="text-base leading-relaxed">
+                        <Markdown>{report.executiveSummary}</Markdown>
+                      </div>
+                    </section>
+
+                    {report.methodology && (
+                      <section className="mb-10 p-5 bg-slate-50 rounded-2xl border border-slate-100 italic text-slate-600 text-sm leading-relaxed">
+                        <p className="text-[10px] uppercase tracking-[0.2em] font-bold not-italic text-slate-400 mb-3">Methodology</p>
+                        <Markdown>{report.methodology}</Markdown>
+                      </section>
+                    )}
+
+                    {report.sections?.map((section, i) => (
+                      <section
+                        key={i}
+                        className="mb-10"
+                        ref={(el) => { sectionRefs.current[i + 1] = el; }}
+                      >
+                        <Markdown>{`## ${section.heading}\n\n${section.content}`}</Markdown>
+                      </section>
+                    ))}
+                  </>
+                )}
+
+                {/* FINDINGS TAB */}
+                {tab === 'Findings' && (
+                  <section>
+                    <p className="text-[10px] uppercase tracking-[0.2em] font-bold text-slate-400 mb-6">
+                      Key Findings {report.findings && <span className="text-slate-300">({report.findings.length})</span>}
+                    </p>
+                    {report.findings && report.findings.length > 0 ? (
+                      <ul className="space-y-3">
+                        {report.findings.map((f, i) => (
+                          <li key={i} className="flex items-start gap-3 p-4 bg-emerald-50 rounded-xl border border-emerald-100">
+                            <div className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center shrink-0 mt-0.5">
+                              <CheckCircle2 size={12} className="text-emerald-600" strokeWidth={2} />
+                            </div>
+                            <span className="text-sm text-slate-700 leading-relaxed">{f}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-slate-400 italic text-sm">No findings recorded for this session.</p>
+                    )}
+                  </section>
+                )}
+
+                {/* SOURCES TAB */}
+                {tab === 'Sources' && (
+                  <section>
+                    <p className="text-[10px] uppercase tracking-[0.2em] font-bold text-slate-400 mb-6">
+                      Sources & References {report.sources && <span className="text-slate-300">({report.sources.length})</span>}
+                    </p>
+                    {report.sources && report.sources.length > 0 ? (
+                      <div className="grid gap-3">
+                        {report.sources.map((source, i) => (
+                          <div key={i} className="p-4 bg-slate-50 rounded-xl border border-slate-100 hover:border-indigo-200 transition-colors">
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap mb-1">
+                                  <h4 className="font-semibold text-sm text-slate-900 leading-tight">
+                                    {i + 1}. {source.title}
+                                  </h4>
+                                  {source.credibilityScore != null && (
+                                    <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                                      source.credibilityScore >= 0.7 ? 'bg-emerald-100 text-emerald-700'
+                                      : source.credibilityScore >= 0.4 ? 'bg-amber-100 text-amber-700'
+                                      : 'bg-rose-100 text-rose-700'
+                                    }`}>
+                                      {(source.credibilityScore * 100).toFixed(0)}% credible
+                                    </span>
+                                  )}
+                                  {source.apiSource && (
+                                    <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700">
+                                      {source.apiSource}
+                                    </span>
+                                  )}
+                                </div>
+                                {source.author && (
+                                  <p className="text-xs text-slate-500 mb-1">By {source.author}</p>
+                                )}
+                                {source.url && (
+                                  <a href={source.url} target="_blank" rel="noreferrer"
+                                    className="text-xs text-indigo-600 hover:text-indigo-800 hover:underline break-all flex items-center gap-1">
+                                    <ExternalLink size={11} strokeWidth={1.5} className="shrink-0" />
+                                    {source.url}
+                                  </a>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-slate-400 italic text-sm">No sources recorded for this session.</p>
+                    )}
+                  </section>
+                )}
+
+              </div>
+            </div>
+          </BezelCard>
+        </div>
+      </div>
+    </motion.div>
+  );
+};
+
+/* ─────────────────────────────────────────────────────────────
    Main Application
 ───────────────────────────────────────────────────────── */
+type View = 'landing' | 'progress' | 'report' | 'history' | 'about';
+
 export default function App() {
-  const [view, setView] = useState<'landing' | 'progress' | 'report' | 'history'>('landing');
+  const [view, setView] = useState<View>('landing');
   const [history, setHistory] = useState<ResearchHistory[]>([]);
   const [options, setOptions] = useState<ResearchOptions>({
     query: '',
@@ -299,7 +755,6 @@ export default function App() {
     { id: '5', name: 'Report Generator', description: 'Report creation', status: AgentStatus.PENDING, icon: 'file' },
   ]);
   const [report, setReport] = useState<ResearchReport | null>(null);
-  const [reportTab, setReportTab] = useState<'Report' | 'Findings' | 'Sources'>('Report');
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [backendOnline, setBackendOnline] = useState<boolean | null>(null);
@@ -378,7 +833,6 @@ export default function App() {
     setLogs([]);
     setError(null);
     setReport(null);
-    setReportTab('Report');
     setAgents((prev) => prev.map((a) => ({ ...a, status: AgentStatus.PENDING })));
     try {
       addLog('System', 'Submitting research request…', 'info');
@@ -417,37 +871,14 @@ export default function App() {
     }
   };
 
-  const exportMarkdown = () => {
-    if (!report) return;
-    const md = [
-      `# ${report.title}\n`,
-      `## Executive Summary\n${report.executiveSummary}\n`,
-      report.methodology ? `## Methodology\n${report.methodology}\n` : '',
-      ...(report.sections ?? []).map((s) => `## ${s.heading}\n${s.content}\n`),
-      report.sources?.length
-        ? `## Sources\n${report.sources.map((s) => `- [${s.title}](${s.url}) — ${s.relevance}`).join('\n')}` : '',
-    ].join('\n');
-    const a = Object.assign(document.createElement('a'), {
-      href: URL.createObjectURL(new Blob([md], { type: 'text/markdown' })),
-      download: `${report.title?.replace(/\s+/g, '_') ?? 'report'}.md`,
-    });
-    a.click();
-  };
+  const navItems: { label: string; targetView: View; show?: boolean }[] = [
+    { label: 'Research', targetView: 'landing' },
+    { label: 'History', targetView: 'history' },
+    { label: 'About', targetView: 'about' },
+    { label: 'Report', targetView: 'report', show: !!report },
+  ];
 
-  const exportHTML = () => {
-    if (!report) return;
-    const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>${report.title}</title>
-<style>body{font-family:system-ui,sans-serif;max-width:800px;margin:0 auto;padding:2rem;color:#1e293b}h1{color:#4f46e5}a{color:#4f46e5}</style></head><body>
-<h1>${report.title}</h1><h2>Executive Summary</h2><p>${report.executiveSummary}</p>
-${(report.sections ?? []).map((s) => `<h2>${s.heading}</h2><div>${s.content}</div>`).join('')}
-${report.sources?.length ? `<h2>Sources</h2><ul>${report.sources.map((s) => `<li><a href="${s.url}">${s.title}</a></li>`).join('')}</ul>` : ''}
-</body></html>`;
-    const a = Object.assign(document.createElement('a'), {
-      href: URL.createObjectURL(new Blob([html], { type: 'text/html' })),
-      download: `${report.title?.replace(/\s+/g, '_') ?? 'report'}.html`,
-    });
-    a.click();
-  };
+  const isResearchActive = view === 'landing' || view === 'progress' || view === 'report';
 
   /* ─────────────────────────────────────────────────────────
      Render
@@ -460,15 +891,12 @@ ${report.sources?.length ? `<h2>Sources</h2><ul>${report.sources.map((s) => `<li
           FLOATING NAV ISLAND
       ══════════════════════════════════════════════════ */}
       <div className="fixed top-5 left-0 right-0 z-50 flex justify-center px-4 pointer-events-none">
-        <motion.nav
-          initial={{ opacity: 0, y: -16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, ease: EASE_OUT }}
+        <nav
           className="pointer-events-auto flex items-center gap-6 backdrop-blur-2xl rounded-full pl-4 pr-4 py-2.5"
           style={{ background: 'rgba(11,11,20,0.85)', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 8px 40px rgba(0,0,0,0.6), 0 0 0 1px rgba(99,102,241,0.1), inset 0 1px 0 rgba(255,255,255,0.06)' }}
         >
           {/* Logo */}
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2.5 cursor-pointer" onClick={() => setView('landing')}>
             <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-[0_0_12px_rgba(99,102,241,0.5)]">
               <Sparkles size={14} strokeWidth={2} className="text-white" />
             </div>
@@ -477,14 +905,13 @@ ${report.sources?.length ? `<h2>Sources</h2><ul>${report.sources.map((s) => `<li
             </span>
           </div>
 
-          {/* Divider */}
           <div className="h-4 w-px bg-white/10 hidden sm:block" />
 
           {/* Nav links — desktop */}
           <div className="hidden sm:flex items-center gap-1">
-            {(['Research', 'History'] as const).map((label) => {
-              const targetView = label === 'Research' ? 'landing' : 'history';
-              const isActive = view === targetView || (label === 'Research' && (view === 'progress' || view === 'report'));
+            {navItems.filter((n) => n.show !== false).map(({ label, targetView }) => {
+              const isActive = view === targetView ||
+                (label === 'Research' && isResearchActive && view !== 'report');
               return (
                 <button
                   key={label}
@@ -496,7 +923,7 @@ ${report.sources?.length ? `<h2>Sources</h2><ul>${report.sources.map((s) => `<li
                   }}
                   className={`px-3.5 py-1.5 rounded-full text-sm font-medium transition-all duration-300 ${
                     isActive ? 'bg-white/[0.09] text-white' : 'text-white/45 hover:text-white/80'
-                  }`}
+                  } ${label === 'Report' ? 'border border-indigo-500/30 text-indigo-300' : ''}`}
                 >
                   {label}
                 </button>
@@ -509,7 +936,7 @@ ${report.sources?.length ? `<h2>Sources</h2><ul>${report.sources.map((s) => `<li
             <div className={`hidden sm:flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[9px] uppercase tracking-[0.15em] font-bold ${
               backendOnline ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'
             }`}>
-              <span className={`w-1.5 h-1.5 rounded-full ${backendOnline ? 'bg-emerald-400' : 'bg-rose-400'}`} />
+              <span className={`w-1.5 h-1.5 rounded-full ${backendOnline ? 'bg-emerald-400 animate-pulse' : 'bg-rose-400'}`} />
               {backendOnline ? 'Online' : 'Offline'}
             </div>
           )}
@@ -519,25 +946,9 @@ ${report.sources?.length ? `<h2>Sources</h2><ul>${report.sources.map((s) => `<li
             className="sm:hidden w-8 h-8 flex items-center justify-center"
             onClick={() => setNavOpen(!navOpen)}
           >
-            <motion.div animate={navOpen ? { rotate: 0 } : { rotate: 0 }} className="relative w-4 h-4">
-              <motion.span
-                animate={navOpen ? { rotate: 45, y: 6 } : { rotate: 0, y: 0 }}
-                transition={{ duration: 0.25, ease: EASE_OUT }}
-                className="absolute left-0 top-0 w-full h-0.5 bg-white rounded-full block"
-              />
-              <motion.span
-                animate={navOpen ? { opacity: 0 } : { opacity: 1 }}
-                transition={{ duration: 0.2 }}
-                className="absolute left-0 top-1.5 w-full h-0.5 bg-white rounded-full block"
-              />
-              <motion.span
-                animate={navOpen ? { rotate: -45, y: -6 } : { rotate: 0, y: 0 }}
-                transition={{ duration: 0.25, ease: EASE_OUT }}
-                className="absolute left-0 top-3 w-full h-0.5 bg-white rounded-full block"
-              />
-            </motion.div>
+            {navOpen ? <X size={16} className="text-white" /> : <Menu size={16} className="text-white" />}
           </button>
-        </motion.nav>
+        </nav>
       </div>
 
       {/* Mobile nav overlay */}
@@ -547,24 +958,22 @@ ${report.sources?.length ? `<h2>Sources</h2><ul>${report.sources.map((s) => `<li
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.3 }}
-            className="fixed inset-0 z-40 bg-[#030305]/90 backdrop-blur-3xl flex flex-col items-center justify-center gap-6"
+            transition={{ duration: 0.25 }}
+            className="fixed inset-0 z-40 bg-[#030305]/95 backdrop-blur-3xl flex flex-col items-center justify-center gap-6"
           >
-            {(['Research', 'History'] as const).map((label, i) => (
+            {navItems.filter((n) => n.show !== false).map(({ label, targetView }, i) => (
               <motion.button
                 key={label}
-                initial={{ opacity: 0, y: 20 }}
+                initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 10 }}
-                transition={{ delay: i * 0.08, duration: 0.4, ease: EASE_OUT }}
+                exit={{ opacity: 0, y: 8 }}
+                transition={{ delay: i * 0.07, duration: 0.3, ease: EASE_OUT }}
                 onClick={() => {
                   setNavOpen(false);
                   if (label === 'History') {
                     researchService.getHistory().then(({ sessions }) => setHistory(sessions)).catch(() => {});
-                    setView('history');
-                  } else {
-                    setView('landing');
                   }
+                  setView(targetView);
                 }}
                 className="text-3xl font-bold text-white/80 hover:text-white transition-colors"
                 style={{ fontFamily: 'var(--font-display)' }}
@@ -580,7 +989,7 @@ ${report.sources?.length ? `<h2>Sources</h2><ul>${report.sources.map((s) => `<li
           MAIN CONTENT
       ══════════════════════════════════════════════════ */}
       <main className="pt-24 pb-20 px-4 max-w-6xl mx-auto">
-        <AnimatePresence mode="wait">
+        <AnimatePresence initial={false}>
 
           {/* ────────────────────────────────────────────
               LANDING VIEW
@@ -590,23 +999,14 @@ ${report.sources?.length ? `<h2>Sources</h2><ul>${report.sources.map((s) => `<li
               key="landing"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              exit={{ opacity: 0, y: -16 }}
-              transition={{ duration: 0.5, ease: EASE_OUT }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.35 }}
             >
               {/* Hero */}
               <section className="flex flex-col items-center justify-center text-center pt-12 pb-10 md:pt-16 md:pb-12 gap-7">
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.6, delay: 0.1, ease: EASE_OUT }}
-                >
-                  <Eyebrow><Sparkles size={10} strokeWidth={2} /> Multi-Agent AI Research</Eyebrow>
-                </motion.div>
+                <Eyebrow><Sparkles size={10} strokeWidth={2} /> Multi-Agent AI Research</Eyebrow>
 
-                <motion.h1
-                  initial={{ opacity: 0, y: 28 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.8, delay: 0.18, ease: EASE_OUT }}
+                <h1
                   className="text-6xl sm:text-7xl md:text-8xl font-extrabold tracking-tight leading-[0.92] max-w-4xl"
                   style={{ fontFamily: 'var(--font-display)', letterSpacing: '-0.03em' }}
                 >
@@ -620,30 +1020,19 @@ ${report.sources?.length ? `<h2>Sources</h2><ul>${report.sources.map((s) => `<li
                   }}>
                     speed of intelligence
                   </span>
-                </motion.h1>
+                </h1>
 
-                <motion.p
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.6, delay: 0.35, ease: EASE_OUT }}
-                  className="text-lg md:text-xl text-white/55 max-w-2xl leading-relaxed"
-                >
+                <p className="text-lg md:text-xl text-white/55 max-w-2xl leading-relaxed">
                   Five specialised AI agents collaborate to research, analyse, verify and
                   generate comprehensive reports on any topic — in minutes.
-                </motion.p>
+                </p>
 
-                {/* Feature chips */}
-                <motion.div
-                  initial={{ opacity: 0, y: 16 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.6, delay: 0.48, ease: EASE_OUT }}
-                  className="flex flex-wrap justify-center gap-2"
-                >
+                <div className="flex flex-wrap justify-center gap-2">
                   <FeatureChip icon={Globe} label="Multi-source search" />
                   <FeatureChip icon={ShieldCheck} label="Fact-checked" />
                   <FeatureChip icon={BookOpen} label="APA / MLA citations" />
                   <FeatureChip icon={Zap} label="Real-time updates" />
-                </motion.div>
+                </div>
               </section>
 
               {/* Offline banner */}
@@ -654,7 +1043,7 @@ ${report.sources?.length ? `<h2>Sources</h2><ul>${report.sources.map((s) => `<li
                   className="mb-6 flex items-center gap-3 px-5 py-3 bg-rose-500/[0.08] border border-rose-500/25 rounded-2xl text-rose-300 text-sm"
                 >
                   <AlertCircle size={16} strokeWidth={1.5} />
-                  <span>Backend is unreachable. Ensure the server is running on port 8000.</span>
+                  <span>Backend is unreachable. The Render server may be starting up — please wait a moment.</span>
                   <button
                     onClick={() => researchService.checkHealth().then(setBackendOnline)}
                     className="ml-auto p-1 hover:text-white transition-colors"
@@ -664,15 +1053,14 @@ ${report.sources?.length ? `<h2>Sources</h2><ul>${report.sources.map((s) => `<li
                 </motion.div>
               )}
 
-              {/* Research input — double-bezel card */}
+              {/* Research input card */}
               <motion.div
-                initial={{ opacity: 0, y: 32 }}
+                initial={{ opacity: 0, y: 24 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.7, delay: 0.5, ease: EASE_OUT }}
+                transition={{ duration: 0.5, delay: 0.1, ease: EASE_OUT }}
               >
                 <BezelCard>
                   <div className="p-6 md:p-8">
-                    {/* Textarea */}
                     <div className="relative mb-5">
                       <div className="p-px rounded-2xl" style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.25) 0%, rgba(139,92,246,0.1) 50%, rgba(255,255,255,0.06) 100%)' }}>
                         <textarea
@@ -686,7 +1074,6 @@ ${report.sources?.length ? `<h2>Sources</h2><ul>${report.sources.map((s) => `<li
                         <style>{`textarea::placeholder { color: rgba(240,240,248,0.22); }`}</style>
                       </div>
 
-                      {/* Submit button — pinned bottom-right */}
                       <div className="absolute bottom-4 right-4 flex items-center gap-2">
                         <span className="text-[10px] text-white/20 hidden sm:block">⌘↵ to submit</span>
                         <PillButton
@@ -694,14 +1081,13 @@ ${report.sources?.length ? `<h2>Sources</h2><ul>${report.sources.map((s) => `<li
                           disabled={!options.query.trim() || backendOnline === false}
                         >
                           <span>Start Research</span>
-                          <span className="w-7 h-7 rounded-full bg-black/20 flex items-center justify-center group-hover:translate-x-0.5 group-hover:-translate-y-px transition-transform duration-400" style={{ transitionTimingFunction: `cubic-bezier(${EASE_OUT.join(',')})` }}>
+                          <span className="w-7 h-7 rounded-full bg-black/20 flex items-center justify-center">
                             <ArrowUpRight size={14} strokeWidth={2} />
                           </span>
                         </PillButton>
                       </div>
                     </div>
 
-                    {/* Advanced options toggle */}
                     <button
                       onClick={() => setShowAdvanced(!showAdvanced)}
                       className="flex items-center gap-2 text-xs font-semibold text-white/35 hover:text-white/70 transition-colors mb-4"
@@ -718,16 +1104,13 @@ ${report.sources?.length ? `<h2>Sources</h2><ul>${report.sources.map((s) => `<li
                           initial={{ height: 0, opacity: 0 }}
                           animate={{ height: 'auto', opacity: 1 }}
                           exit={{ height: 0, opacity: 0 }}
-                          transition={{ duration: 0.4, ease: EASE_OUT }}
+                          transition={{ duration: 0.35, ease: EASE_OUT }}
                           className="overflow-hidden"
                         >
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
-                            {/* Left column */}
                             <div className="space-y-4">
                               <div>
-                                <label className="text-[10px] uppercase tracking-[0.18em] font-semibold text-white/30 mb-2 block">
-                                  Focus Areas
-                                </label>
+                                <label className="text-[10px] uppercase tracking-[0.18em] font-semibold text-white/30 mb-2 block">Focus Areas</label>
                                 <input
                                   type="text"
                                   value={options.focusAreas}
@@ -754,12 +1137,9 @@ ${report.sources?.length ? `<h2>Sources</h2><ul>${report.sources.map((s) => `<li
                               </div>
                             </div>
 
-                            {/* Right column */}
                             <div className="space-y-4">
                               <div>
-                                <label className="text-[10px] uppercase tracking-[0.18em] font-semibold text-white/30 mb-2 block">
-                                  Source Preferences
-                                </label>
+                                <label className="text-[10px] uppercase tracking-[0.18em] font-semibold text-white/30 mb-2 block">Source Preferences</label>
                                 <div className="bg-[#07070e] border border-white/[0.07] rounded-2xl p-3 flex flex-wrap gap-2">
                                   {options.sources.map((s) => (
                                     <span key={s} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/25 text-indigo-300 text-[10px] font-semibold uppercase tracking-wider">
@@ -801,9 +1181,9 @@ ${report.sources?.length ? `<h2>Sources</h2><ul>${report.sources.map((s) => `<li
 
               {/* Agent preview strip */}
               <motion.div
-                initial={{ opacity: 0, y: 20 }}
+                initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: 0.7, ease: EASE_OUT }}
+                transition={{ duration: 0.5, delay: 0.2, ease: EASE_OUT }}
                 className="mt-8"
               >
                 <BezelCard innerClassName="p-5 md:p-6">
@@ -811,7 +1191,6 @@ ${report.sources?.length ? `<h2>Sources</h2><ul>${report.sources.map((s) => `<li
                     5-Stage Research Pipeline
                   </p>
                   <div className="flex items-start justify-between relative">
-                    {/* Track line */}
                     <div className="absolute top-[22px] left-[40px] right-[40px] h-px bg-white/[0.06]" />
                     {[
                       { icon: User, label: 'User Proxy', desc: 'Analysis' },
@@ -820,11 +1199,8 @@ ${report.sources?.length ? `<h2>Sources</h2><ul>${report.sources.map((s) => `<li
                       { icon: ShieldCheck, label: 'Fact Checker', desc: 'Verify' },
                       { icon: FileText, label: 'Generator', desc: 'Report' },
                     ].map(({ icon: Icon, label, desc }, i) => (
-                      <motion.div
+                      <div
                         key={label}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.8 + i * 0.07, duration: 0.4, ease: EASE_OUT }}
                         className="flex flex-col items-center gap-2 flex-1 relative z-10"
                       >
                         <div className="p-2.5 rounded-xl border border-white/[0.07] bg-[#0d0d18] text-white/30">
@@ -834,7 +1210,7 @@ ${report.sources?.length ? `<h2>Sources</h2><ul>${report.sources.map((s) => `<li
                           <p className="text-[9px] font-semibold text-white/40 leading-tight" style={{ fontFamily: 'var(--font-display)' }}>{label}</p>
                           <p className="text-[8px] text-white/20 mt-0.5">{desc}</p>
                         </div>
-                      </motion.div>
+                      </div>
                     ))}
                   </div>
                 </BezelCard>
@@ -848,13 +1224,12 @@ ${report.sources?.length ? `<h2>Sources</h2><ul>${report.sources.map((s) => `<li
           {view === 'progress' && (
             <motion.div
               key="progress"
-              initial={{ opacity: 0, y: 16 }}
+              initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.5, ease: EASE_OUT }}
+              transition={{ duration: 0.35 }}
               className="space-y-5"
             >
-              {/* Error banner */}
               {error && (
                 <div className="flex items-center gap-3 px-5 py-3.5 bg-rose-500/[0.08] border border-rose-500/25 rounded-2xl text-rose-300 text-sm">
                   <AlertCircle size={16} strokeWidth={1.5} />
@@ -868,7 +1243,6 @@ ${report.sources?.length ? `<h2>Sources</h2><ul>${report.sources.map((s) => `<li
                 </div>
               )}
 
-              {/* Page heading */}
               <div className="flex items-baseline justify-between mb-2">
                 <div>
                   <Eyebrow><Loader2 size={10} className="animate-spin" /> Processing</Eyebrow>
@@ -882,7 +1256,6 @@ ${report.sources?.length ? `<h2>Sources</h2><ul>${report.sources.map((s) => `<li
                 </span>
               </div>
 
-              {/* Progress bar */}
               <div className="h-1 bg-white/[0.06] rounded-full overflow-hidden">
                 <motion.div
                   className="h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-violet-500 relative"
@@ -898,22 +1271,16 @@ ${report.sources?.length ? `<h2>Sources</h2><ul>${report.sources.map((s) => `<li
                 </motion.div>
               </div>
 
-              {/* Agent pipeline */}
               <BezelCard innerClassName="p-6 md:p-8">
                 <div className="flex items-center justify-between mb-8">
-                  <h3 className="font-bold text-sm text-white/60" style={{ fontFamily: 'var(--font-display)' }}>
-                    Agent Pipeline
-                  </h3>
+                  <h3 className="font-bold text-sm text-white/60" style={{ fontFamily: 'var(--font-display)' }}>Agent Pipeline</h3>
                   <span className="text-[10px] font-mono text-white/25">
                     {agents.filter((a) => a.status === AgentStatus.COMPLETED).length}/{agents.length} complete
                   </span>
                 </div>
 
-                {/* Agent row */}
                 <div className="flex items-start justify-between relative px-2 md:px-4">
-                  {/* Background track */}
                   <div className="absolute top-[26px] left-[52px] right-[52px] h-px bg-white/[0.06]" />
-                  {/* Progress fill */}
                   <motion.div
                     className="absolute top-[26px] left-[52px] h-px bg-gradient-to-r from-indigo-500 to-emerald-500"
                     style={{ originX: 0 }}
@@ -928,13 +1295,11 @@ ${report.sources?.length ? `<h2>Sources</h2><ul>${report.sources.map((s) => `<li
                     }}
                     transition={{ duration: 0.8, ease: EASE_OUT }}
                   />
-
                   {agents.map((agent, idx) => (
-                    <motion.div
-                      key={agent.id}
-                      initial={{ opacity: 0, y: 20 }}
+                    <motion.div key={agent.id}
+                      initial={{ opacity: 0, y: 16 }}
                       animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: idx * 0.08, duration: 0.45, ease: EASE_OUT }}
+                      transition={{ delay: idx * 0.07, duration: 0.4, ease: EASE_OUT }}
                       className="w-1/5"
                     >
                       <AgentCell agent={agent} isActive={agent.status === AgentStatus.IN_PROGRESS} />
@@ -943,7 +1308,6 @@ ${report.sources?.length ? `<h2>Sources</h2><ul>${report.sources.map((s) => `<li
                 </div>
               </BezelCard>
 
-              {/* Live terminal log */}
               <BezelCard innerClassName="overflow-hidden">
                 <div className="px-5 py-3.5 border-b border-white/[0.06] flex items-center justify-between bg-white/[0.02]">
                   <div className="flex items-center gap-2.5">
@@ -966,7 +1330,7 @@ ${report.sources?.length ? `<h2>Sources</h2><ul>${report.sources.map((s) => `<li
                       key={i}
                       initial={{ opacity: 0, x: -8 }}
                       animate={{ opacity: 1, x: 0 }}
-                      transition={{ duration: 0.25 }}
+                      transition={{ duration: 0.2 }}
                       className="flex gap-3"
                     >
                       <span className="text-white/20 shrink-0 tabular-nums">{log.timestamp}</span>
@@ -997,15 +1361,26 @@ ${report.sources?.length ? `<h2>Sources</h2><ul>${report.sources.map((s) => `<li
           )}
 
           {/* ────────────────────────────────────────────
+              REPORT VIEW
+          ──────────────────────────────────────────── */}
+          {view === 'report' && report && (
+            <ReportPage
+              report={report}
+              onNew={() => { setView('landing'); }}
+              onBack={() => setView(history.length > 0 ? 'history' : 'landing')}
+            />
+          )}
+
+          {/* ────────────────────────────────────────────
               HISTORY VIEW
           ──────────────────────────────────────────── */}
           {view === 'history' && (
             <motion.div
               key="history"
-              initial={{ opacity: 0, y: 16 }}
+              initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -16 }}
-              transition={{ duration: 0.5, ease: EASE_OUT }}
+              exit={{ opacity: 0, y: -12 }}
+              transition={{ duration: 0.35 }}
               className="space-y-6"
             >
               <div className="flex items-end justify-between pt-4 mb-8">
@@ -1037,11 +1412,10 @@ ${report.sources?.length ? `<h2>Sources</h2><ul>${report.sources.map((s) => `<li
               ) : (
                 <div className="grid gap-3">
                   {history.map((item, i) => (
-                    <motion.div
-                      key={item.id}
-                      initial={{ opacity: 0, y: 12 }}
+                    <motion.div key={item.id}
+                      initial={{ opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: i * 0.05, duration: 0.4, ease: EASE_OUT }}
+                      transition={{ delay: i * 0.04, duration: 0.35, ease: EASE_OUT }}
                     >
                       <div
                         className="p-[1.5px] bg-white/[0.03] border border-white/[0.06] rounded-2xl hover:border-indigo-500/30 transition-all duration-500 cursor-pointer group"
@@ -1092,205 +1466,10 @@ ${report.sources?.length ? `<h2>Sources</h2><ul>${report.sources.map((s) => `<li
           )}
 
           {/* ────────────────────────────────────────────
-              REPORT VIEW
+              ABOUT VIEW
           ──────────────────────────────────────────── */}
-          {view === 'report' && report && (
-            <motion.div
-              key="report"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.55, ease: EASE_OUT }}
-              className="space-y-6"
-            >
-              {/* Report header */}
-              <div className="pt-4 pb-2">
-                <Eyebrow><CheckCircle2 size={10} /> Report Ready</Eyebrow>
-                <h1
-                  className="text-2xl md:text-3xl lg:text-4xl font-extrabold mt-3 mb-5 tracking-tight leading-tight max-w-4xl"
-                  style={{ fontFamily: 'var(--font-display)' }}
-                >
-                  {report.title}
-                </h1>
-
-                {/* Quality score + actions */}
-                <div className="flex flex-wrap items-center gap-3">
-                  {report.quality_score != null && (
-                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-emerald-500/25 bg-emerald-500/[0.08]">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400">
-                        Quality {(report.quality_score * 100).toFixed(0)}%
-                      </span>
-                    </div>
-                  )}
-
-                  <PillButton variant="ghost" onClick={exportMarkdown}>
-                    <Download size={13} strokeWidth={1.5} /> Markdown
-                  </PillButton>
-                  <PillButton variant="ghost" onClick={exportHTML}>
-                    <Download size={13} strokeWidth={1.5} /> HTML
-                  </PillButton>
-                  <PillButton onClick={() => setView('landing')}>
-                    <Plus size={13} strokeWidth={2} />
-                    New Research
-                    <span className="w-6 h-6 rounded-full bg-black/20 flex items-center justify-center group-hover:translate-x-0.5 transition-transform" style={{ transitionTimingFunction: `cubic-bezier(${EASE_OUT.join(',')})`, transitionDuration: '400ms' }}>
-                      <ArrowUpRight size={12} strokeWidth={2} />
-                    </span>
-                  </PillButton>
-                </div>
-              </div>
-
-              {/* Report content panel */}
-              <BezelCard innerClassName="overflow-hidden">
-                {/* Tab bar */}
-                <div className="px-6 py-0 border-b border-white/[0.06] flex items-center gap-0 bg-white/[0.015]">
-                  {(['Report', 'Findings', 'Sources'] as const).map((tab) => (
-                    <button
-                      key={tab}
-                      onClick={() => setReportTab(tab)}
-                      className={`relative px-5 py-4 text-xs font-semibold transition-colors duration-300 ${
-                        reportTab === tab ? 'text-white' : 'text-white/35 hover:text-white/60'
-                      }`}
-                      style={{ fontFamily: 'var(--font-display)' }}
-                    >
-                      {tab}
-                      {tab === 'Sources' && report.sources ? ` (${report.sources.length})` : ''}
-                      {tab === 'Findings' && report.findings ? ` (${report.findings.length})` : ''}
-                      {reportTab === tab && (
-                        <motion.div
-                          layoutId="report-tab-indicator"
-                          className="absolute bottom-0 left-4 right-4 h-px bg-indigo-400"
-                          transition={{ duration: 0.3, ease: EASE_OUT }}
-                        />
-                      )}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Content area — white panel for readability */}
-                <div className="bg-white min-h-[500px]">
-                  <div className="p-6 md:p-10 max-w-4xl mx-auto report-prose">
-
-                    {/* ── REPORT TAB ── */}
-                    {reportTab === 'Report' && (
-                      <>
-                        {report.tableOfContents && report.tableOfContents.length > 0 && (
-                          <section className="mb-10 p-5 bg-indigo-50 rounded-2xl border border-indigo-100">
-                            <p className="text-[10px] uppercase tracking-[0.2em] font-bold text-indigo-500 mb-3">
-                              Table of Contents
-                            </p>
-                            <ul className="space-y-2 list-none p-0 m-0">
-                              {report.tableOfContents.map((item, i) => (
-                                <li key={i} className="flex items-center gap-2.5 text-sm text-indigo-700 font-medium">
-                                  <span className="text-[10px] font-bold text-indigo-300 tabular-nums w-5 shrink-0">{String(i + 1).padStart(2, '0')}</span>
-                                  {item}
-                                </li>
-                              ))}
-                            </ul>
-                          </section>
-                        )}
-
-                        <section className="mb-10">
-                          <p className="text-[10px] uppercase tracking-[0.2em] font-bold text-slate-400 mb-3">Executive Summary</p>
-                          <div className="text-base leading-relaxed">
-                            <Markdown>{report.executiveSummary}</Markdown>
-                          </div>
-                        </section>
-
-                        {report.methodology && (
-                          <section className="mb-10 p-5 bg-slate-50 rounded-2xl border border-slate-100 italic text-slate-600 text-sm leading-relaxed">
-                            <p className="text-[10px] uppercase tracking-[0.2em] font-bold not-italic text-slate-400 mb-3">Methodology</p>
-                            <Markdown>{report.methodology}</Markdown>
-                          </section>
-                        )}
-
-                        {report.sections?.map((section, i) => (
-                          <section key={i} className="mb-10">
-                            <Markdown>{`## ${section.heading}\n\n${section.content}`}</Markdown>
-                          </section>
-                        ))}
-                      </>
-                    )}
-
-                    {/* ── FINDINGS TAB ── */}
-                    {reportTab === 'Findings' && (
-                      <section>
-                        <p className="text-[10px] uppercase tracking-[0.2em] font-bold text-slate-400 mb-6">
-                          Key Findings {report.findings && <span className="text-slate-300">({report.findings.length})</span>}
-                        </p>
-                        {report.findings && report.findings.length > 0 ? (
-                          <ul className="space-y-3">
-                            {report.findings.map((f, i) => (
-                              <li key={i} className="flex items-start gap-3 p-4 bg-emerald-50 rounded-xl border border-emerald-100">
-                                <div className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center shrink-0 mt-0.5">
-                                  <CheckCircle2 size={12} className="text-emerald-600" strokeWidth={2} />
-                                </div>
-                                <span className="text-sm text-slate-700 leading-relaxed">{f}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        ) : (
-                          <p className="text-slate-400 italic text-sm">No findings recorded for this session.</p>
-                        )}
-                      </section>
-                    )}
-
-                    {/* ── SOURCES TAB ── */}
-                    {reportTab === 'Sources' && (
-                      <section>
-                        <p className="text-[10px] uppercase tracking-[0.2em] font-bold text-slate-400 mb-6">
-                          Sources & References {report.sources && <span className="text-slate-300">({report.sources.length})</span>}
-                        </p>
-                        {report.sources && report.sources.length > 0 ? (
-                          <div className="grid gap-3">
-                            {report.sources.map((source, i) => (
-                              <div key={i} className="p-4 bg-slate-50 rounded-xl border border-slate-100 hover:border-indigo-200 transition-colors">
-                                <div className="flex items-start justify-between gap-4">
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2 flex-wrap mb-1">
-                                      <h4 className="font-semibold text-sm text-slate-900 leading-tight">
-                                        {i + 1}. {source.title}
-                                      </h4>
-                                      {source.credibilityScore != null && (
-                                        <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
-                                          source.credibilityScore >= 0.7 ? 'bg-emerald-100 text-emerald-700'
-                                          : source.credibilityScore >= 0.4 ? 'bg-amber-100 text-amber-700'
-                                          : 'bg-rose-100 text-rose-700'
-                                        }`}>
-                                          {(source.credibilityScore * 100).toFixed(0)}% credible
-                                        </span>
-                                      )}
-                                      {source.apiSource && (
-                                        <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700">
-                                          {source.apiSource}
-                                        </span>
-                                      )}
-                                    </div>
-                                    {source.author && (
-                                      <p className="text-xs text-slate-500 mb-1">By {source.author}</p>
-                                    )}
-                                    {source.url && (
-                                      <a href={source.url} target="_blank" rel="noreferrer"
-                                        className="text-xs text-indigo-600 hover:text-indigo-800 hover:underline break-all flex items-center gap-1">
-                                        <ExternalLink size={11} strokeWidth={1.5} className="shrink-0" />
-                                        {source.url}
-                                      </a>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <p className="text-slate-400 italic text-sm">No sources recorded for this session.</p>
-                        )}
-                      </section>
-                    )}
-
-                  </div>
-                </div>
-              </BezelCard>
-            </motion.div>
+          {view === 'about' && (
+            <AboutPage onStart={() => setView('landing')} />
           )}
 
         </AnimatePresence>
