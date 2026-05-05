@@ -2,20 +2,100 @@ services:
   - type: web
     name: research-assistant-backend
     runtime: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     plan: free
+    region: oregon
+    buildCommand: pip install -r requirements.txt && mkdir -p logs
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 1
+    healthCheckPath: /api/v1/health/live
+    autoDeploy: true
+
     envVars:
+      # ── Python runtime ──────────────────────────────────────────────
       - key: PYTHON_VERSION
-        value: 3.11.0
-      - key: MONGODB_DATABASE
-        value: research_assistant_db
-      # Add these in the Render dashboard (Settings → Environment):
-      - key: OPENROUTER_API_KEY
-        sync: false
+        value: "3.11.0"
+
+      # ── FastAPI ──────────────────────────────────────────────────────
+      - key: FASTAPI_DEBUG
+        value: "False"
+      - key: FASTAPI_HOST
+        value: "0.0.0.0"
+      - key: FASTAPI_WORKERS
+        value: "1"
+
+      # ── MongoDB Atlas ────────────────────────────────────────────────
+      #    Paste your Atlas connection string in the Render dashboard
       - key: MONGODB_URL
         sync: false
+      - key: MONGODB_DATABASE
+        value: research_assistant_db
+
+      # ── Redis ────────────────────────────────────────────────────────
+      #    Paste your Redis URL (Heroku / Upstash / Render Redis)
       - key: REDIS_URL
         sync: false
+      - key: CACHE_TTL
+        value: "86400"
+
+      # ── Sentry ───────────────────────────────────────────────────────
       - key: SENTRY_DSN
         sync: false
+
+      # ── OpenRouter LLM ───────────────────────────────────────────────
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: OPENROUTER_BASE_URL
+        value: "https://openrouter.ai/api/v1"
+
+      # ── Agent model selection ────────────────────────────────────────
+      - key: RESEARCHER_MODEL
+        value: "deepseek/deepseek-chat"
+      - key: ANALYST_MODEL
+        value: "anthropic/claude-3.5-sonnet"
+      - key: FACT_CHECKER_MODEL
+        value: "openai/gpt-4o"
+      - key: REPORT_GENERATOR_MODEL
+        value: "deepseek/deepseek-chat"
+
+      # ── Search APIs ──────────────────────────────────────────────────
+      - key: SERPAPI_KEY
+        sync: false
+      - key: NEWSAPI_KEY
+        sync: false
+      - key: GOOGLE_API_KEY
+        sync: false
+      - key: GOOGLE_SEARCH_ENGINE_ID
+        value: "610b6f943aada4559"
+
+      # ── Academic APIs (public, no key needed) ────────────────────────
+      - key: ARXIV_API_BASE
+        value: "https://export.arxiv.org/api/query"
+      - key: PUBMED_API_BASE
+        value: "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
+      - key: WIKIPEDIA_API_BASE
+        value: "https://en.wikipedia.org/api/rest_v1"
+
+      # ── Security ─────────────────────────────────────────────────────
+      - key: SECRET_KEY
+        sync: false
+      - key: ALGORITHM
+        value: "HS256"
+      - key: ACCESS_TOKEN_EXPIRE_MINUTES
+        value: "30"
+
+      # ── CORS — GitHub Pages frontend + local dev ──────────────────────
+      - key: ALLOWED_ORIGINS
+        value: '["https://waqar-743.github.io","https://waqar-743.github.io/Research_Assistant","http://localhost:5500","http://localhost:3000"]'
+
+      # ── Logging ───────────────────────────────────────────────────────
+      - key: LOG_LEVEL
+        value: "INFO"
+      - key: LOG_FILE
+        value: "logs/app.log"
+
+      # ── Research settings ─────────────────────────────────────────────
+      - key: MAX_SOURCES_DEFAULT
+        value: "300"
+      - key: AGENT_TIMEOUT
+        value: "120"
+      - key: MAX_RETRIES
+        value: "3"

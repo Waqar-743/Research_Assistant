@@ -42,7 +42,10 @@ async def lifespan(app: FastAPI):
     Application lifespan manager.
     Handles startup and shutdown events.
     """
-    # Startup
+    # Startup — ensure log directory exists before any file handlers open
+    import os as _os
+    _os.makedirs("logs", exist_ok=True)
+
     setup_logging()
     logger.info("Starting Multi-Agent Research Assistant...")
     

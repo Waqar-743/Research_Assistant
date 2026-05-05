@@ -38,6 +38,7 @@ jobs:
       OPENROUTER_API_KEY: test-key
       MONGODB_URL: mongodb://localhost:27017
       MONGODB_DATABASE: research_assistant_test
+      ALLOWED_ORIGINS: '["*"]'
 
     steps:
       - uses: actions/checkout@v4
@@ -88,12 +89,12 @@ jobs:
       - name: Build
         run: npm run build
         env:
-          # Sub-path required for GitHub Pages (repo name with exact casing)
+          # Sub-path required for GitHub Pages (repo name exact casing)
           VITE_BASE: /Research_Assistant/
-          # Backend URL – set this GitHub secret once you have a Render URL
+          # Render backend URL — set as a GitHub Actions secret
           VITE_API_URL: ${{ secrets.VITE_API_URL }}
 
-      # SPA: serve index.html for all unknown routes
+      # SPA: copy index.html → 404.html so deep links work on GitHub Pages
       - name: Add SPA 404 fallback
         run: cp dist/index.html dist/404.html
 
@@ -114,11 +115,21 @@ jobs:
     name: Deploy Backend → Render
     runs-on: ubuntu-latest
     needs: backend-tests
-    if: >
-      github.ref == 'refs/heads/main' &&
-      github.event_name == 'push' &&
-      vars.RENDER_DEPLOY_HOOK != ''
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
 
     steps:
       - name: Trigger Render deploy hook
-        run: curl -fsSL -o /dev/null -w "%{http_code}" "${{ vars.RENDER_DEPLOY_HOOK }}"
+        env:
+          # Store the hook URL as a GitHub Actions secret:
+          # GitHub repo → Settings → Secrets and variables → Actions → New secret
+          # Name: RENDER_DEPLOY_HOOK   Value: <your Render deploy hook URL>
+          RENDER_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+        run: |
+          if [ -z "$RENDER_HOOK" ]; then
+            echo "RENDER_DEPLOY_HOOK variable not set — skipping Render trigger."
+            echo "Add it in: GitHub repo → Settings → Secrets and variables → Actions → Variables"
+            exit 0
+          fi
+          echo "Triggering Render deploy..."
+          STATUS=$(curl -fsSL -o /dev/null -w "%{http_code}" "$RENDER_HOOK")
+          echo "Render deploy hook HTTP status: $STATUS"
