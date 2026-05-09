@@ -84,9 +84,12 @@ async def connect_to_mongo():
         logger.info(f"Connected to MongoDB database: {settings.mongodb_database}")
         
     except Exception as e:
-        logger.warning(f"Failed to connect to MongoDB: {e}")
-        logger.warning("Running in offline mode - database features will be limited")
-        # Don't raise - allow app to start without DB for demo purposes
+        logger.error(f"Failed to connect to MongoDB: {e}", exc_info=True)
+        logger.warning("Running in degraded mode — all database operations will return 503")
+        # Reset everything so db.database is None → callers get a clean 503
+        db.client = None
+        db.database = None
+        db.fs = None
 
 
 async def close_mongo_connection():

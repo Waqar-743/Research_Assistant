@@ -173,9 +173,8 @@ async def start_research(
             raise HTTPException(
                 status_code=503,
                 detail=(
-                    "Database not available. "
-                    "Set MONGODB_URL in the Render environment variables dashboard, "
-                    "then redeploy the service."
+                    "Database not available — MongoDB failed to connect at startup. "
+                    "Check Render logs for the connection error."
                 ),
             )
 

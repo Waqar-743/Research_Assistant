@@ -23,9 +23,8 @@ services:
         value: "1"
 
       # ── MongoDB Atlas ────────────────────────────────────────────────
-      #    Set via GitHub secret MONGODB_URL — synced by CI deploy job.
       - key: MONGODB_URL
-        sync: false
+        value: "mongodb+srv://f25607259_db_user:oEikSBY8NFdl0C07@cluster0.or14lgr.mongodb.net/"
       - key: MONGODB_DATABASE
         value: research_assistant_db
 
@@ -37,9 +36,8 @@ services:
         value: "86400"
 
       # ── Sentry ───────────────────────────────────────────────────────
-      #    Set via GitHub secret SENTRY_DSN — synced by CI deploy job.
       - key: SENTRY_DSN
-        sync: false
+        value: "https://46016db8cf493b5b048476345acde2cf@o4510939939405824.ingest.us.sentry.io/4510939943075840"
 
       # ── OpenRouter LLM ───────────────────────────────────────────────
       #    Set via GitHub secret OPENROUTER_API_KEY — synced by CI deploy job.
@@ -59,11 +57,10 @@ services:
         value: "deepseek/deepseek-chat"
 
       # ── Search APIs ──────────────────────────────────────────────────
-      #    Set via GitHub secrets SERPAPI_KEY / NEWSAPI_KEY — synced by CI.
       - key: SERPAPI_KEY
-        sync: false
+        value: "807f64a89c148291ff8f43d98a1be560fbbd1c20"
       - key: NEWSAPI_KEY
-        sync: false
+        value: "c5a3591304384aa4b481c038d7f71de0"
       - key: GOOGLE_API_KEY
         value: ""
       - key: GOOGLE_SEARCH_ENGINE_ID
