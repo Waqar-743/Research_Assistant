@@ -181,20 +181,21 @@ jobs:
           RENDER_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
         run: |
           if [ -z "$RENDER_HOOK" ]; then
-            echo "ℹ️  RENDER_DEPLOY_HOOK secret is not set."
-            echo "   Render will still auto-deploy via autoDeploy:true in render.yaml."
-            echo "   To trigger deploys instantly: add RENDER_DEPLOY_HOOK in"
-            echo "   GitHub → Settings → Secrets and variables → Actions → New secret."
+            echo "RENDER_DEPLOY_HOOK secret not set."
+            echo "Render will still auto-deploy via autoDeploy:true in render.yaml."
+            echo "To trigger deploys instantly, add RENDER_DEPLOY_HOOK in:"
+            echo "  GitHub -> Settings -> Secrets and variables -> Actions -> New secret"
             exit 0
           fi
           echo "Triggering Render deploy..."
           HTTP=$(curl -fsSL -o /dev/null -w "%{http_code}" "$RENDER_HOOK")
           echo "Render hook HTTP status: $HTTP"
-          if [ "$HTTP" != "200" ] && [ "$HTTP" != "201" ]; then
+          # Render returns 202 Accepted for a successful deploy trigger
+          if [ "$HTTP" != "200" ] && [ "$HTTP" != "201" ] && [ "$HTTP" != "202" ]; then
             echo "::error::Render deploy hook returned unexpected status $HTTP"
             exit 1
           fi
-          echo "✅ Render deploy triggered successfully."
+          echo "Render deploy triggered successfully (HTTP $HTTP)"
 
       - name: Backend summary
         run: |
@@ -212,7 +213,12 @@ jobs:
     name: Smoke Test
     runs-on: ubuntu-latest
     needs: [deploy-frontend, deploy-backend]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    # Run even if deploy-backend failed — Render's autoDeploy picks up the
+    # push independently, so the service is deploying regardless.
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      github.event_name == 'push' &&
+      needs.deploy-frontend.result == 'success'
 
     steps:
       - name: Wait for Render to wake up (free tier may cold-start)
