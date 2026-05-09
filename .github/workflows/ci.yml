@@ -1,26 +1,40 @@
 name: CI / CD
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Triggers
+# ─────────────────────────────────────────────────────────────────────────────
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Permissions required for GitHub Pages deploy
+# ─────────────────────────────────────────────────────────────────────────────
 permissions:
   contents: read
   pages: write
   id-token: write
 
-concurrency:
-  group: pages
-  cancel-in-progress: false
+# ─────────────────────────────────────────────────────────────────────────────
+# Opt into Node.js 24 on the Actions runner to silence the Node 20
+# deprecation warnings and be ready for the June 2026 cutoff.
+# ─────────────────────────────────────────────────────────────────────────────
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
-# ─────────────────────────────────────────────
-# JOB 1 – Backend tests
-# ─────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
+# JOBS
+# ─────────────────────────────────────────────────────────────────────────────
 jobs:
-  backend-tests:
-    name: Backend Tests
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # JOB 1 — Backend CI  (Python tests)
+  # Runs on every push and every PR so issues are caught early.
+  # ───────────────────────────────────────────────────────────────────────────
+  backend-ci:
+    name: Backend CI
     runs-on: ubuntu-latest
 
     services:
@@ -29,7 +43,7 @@ jobs:
         ports:
           - 27017:27017
         options: >-
-          --health-cmd "mongosh --eval 'db.runCommand({ ping: 1 })'"
+          --health-cmd "mongosh --eval 'db.runCommand({ping:1})'"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -39,6 +53,7 @@ jobs:
       MONGODB_URL: mongodb://localhost:27017
       MONGODB_DATABASE: research_assistant_test
       ALLOWED_ORIGINS: '["*"]'
+      REDIS_URL: ""
 
     steps:
       - uses: actions/checkout@v4
@@ -51,24 +66,17 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Run pytest
+      - name: Run tests
         run: pytest --tb=short -q
 
-# ─────────────────────────────────────────────
-# JOB 2 – Frontend build + deploy to GitHub Pages
-# ─────────────────────────────────────────────
-  deploy-frontend:
-    name: Deploy Frontend → GitHub Pages
+  # ───────────────────────────────────────────────────────────────────────────
+  # JOB 2 — Frontend CI  (type-check + production build)
+  # Runs on every push and every PR — catches TypeScript errors before merge.
+  # Uploads the dist folder as an artifact so the deploy job reuses it.
+  # ───────────────────────────────────────────────────────────────────────────
+  frontend-ci:
+    name: Frontend CI
     runs-on: ubuntu-latest
-    needs: backend-tests
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-
-    env:
-      RENDER_BACKEND_URL: https://research-assistant-ghnh.onrender.com
-
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
 
     defaults:
       run:
@@ -86,63 +94,151 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Type check
+      - name: TypeScript check
         run: npm run lint
 
-      - name: Build
+      - name: Production build
         run: npm run build
         env:
           VITE_BASE: /Research_Assistant/
           VITE_API_URL: https://research-assistant-ghnh.onrender.com
 
-      # SPA: copy index.html → 404.html so deep links work on GitHub Pages
+      # Copy index.html → 404.html so GitHub Pages SPA routing works
       - name: Add SPA 404 fallback
         run: cp dist/index.html dist/404.html
+
+      # Upload dist as a regular artifact so the deploy job can reuse it
+      # without rebuilding. Retention 1 day is enough for the deploy.
+      - name: Upload dist artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+          retention-days: 1
+          if-no-files-found: error
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # JOB 3 — Deploy Frontend → GitHub Pages
+  # Only runs on push to main after both CI jobs pass.
+  # Reuses the dist artifact built in Job 2 — no second build.
+  # ───────────────────────────────────────────────────────────────────────────
+  deploy-frontend:
+    name: Deploy → GitHub Pages
+    runs-on: ubuntu-latest
+    needs: [backend-ci, frontend-ci]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    # Serialize GitHub Pages deployments — required by the Pages API.
+    concurrency:
+      group: github-pages
+      cancel-in-progress: false
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+
+    steps:
+      - name: Download dist artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: dist
 
       - uses: actions/configure-pages@v5
 
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: frontend/dist
+          path: dist
 
       - name: Deploy to GitHub Pages
-        id: deployment
+        id: deploy
         uses: actions/deploy-pages@v4
 
-      - name: Publish live links
+      - name: Deployment summary
         run: |
-          echo "Frontend: ${{ steps.deployment.outputs.page_url }}" >> $GITHUB_STEP_SUMMARY
-          echo "Backend: $RENDER_BACKEND_URL" >> $GITHUB_STEP_SUMMARY
+          echo "## Deployment Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Layer    | URL |" >> $GITHUB_STEP_SUMMARY
+          echo "| -------- | --- |" >> $GITHUB_STEP_SUMMARY
+          echo "| Frontend | ${{ steps.deploy.outputs.page_url }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Backend  | https://research-assistant-ghnh.onrender.com |" >> $GITHUB_STEP_SUMMARY
 
-# ─────────────────────────────────────────────
-# JOB 3 – Trigger Render backend redeploy
-# ─────────────────────────────────────────────
+  # ───────────────────────────────────────────────────────────────────────────
+  # JOB 4 — Deploy Backend → Render
+  # Only runs on push to main after backend CI passes.
+  # Render also has autoDeploy: true in render.yaml, so this is an optional
+  # fast-path. Add RENDER_DEPLOY_HOOK as a GitHub secret to enable it.
+  # ───────────────────────────────────────────────────────────────────────────
   deploy-backend:
-    name: Deploy Backend → Render
+    name: Deploy → Render
     runs-on: ubuntu-latest
-    needs: backend-tests
+    needs: backend-ci
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-
-    env:
-      RENDER_BACKEND_URL: https://research-assistant-ghnh.onrender.com
 
     steps:
       - name: Trigger Render deploy hook
         env:
-          # Store the hook URL as a GitHub Actions secret:
-          # GitHub repo → Settings → Secrets and variables → Actions → New secret
-          # Name: RENDER_DEPLOY_HOOK   Value: <your Render deploy hook URL>
           RENDER_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
         run: |
           if [ -z "$RENDER_HOOK" ]; then
-            echo "RENDER_DEPLOY_HOOK variable not set — skipping Render trigger."
-            echo "Add it in: GitHub repo -> Settings -> Secrets and variables -> Actions -> Secrets"
+            echo "ℹ️  RENDER_DEPLOY_HOOK secret is not set."
+            echo "   Render will still auto-deploy via autoDeploy:true in render.yaml."
+            echo "   To trigger deploys instantly: add RENDER_DEPLOY_HOOK in"
+            echo "   GitHub → Settings → Secrets and variables → Actions → New secret."
             exit 0
           fi
           echo "Triggering Render deploy..."
-          STATUS=$(curl -fsSL -o /dev/null -w "%{http_code}" "$RENDER_HOOK")
-          echo "Render deploy hook HTTP status: $STATUS"
+          HTTP=$(curl -fsSL -o /dev/null -w "%{http_code}" "$RENDER_HOOK")
+          echo "Render hook HTTP status: $HTTP"
+          if [ "$HTTP" != "200" ] && [ "$HTTP" != "201" ]; then
+            echo "::error::Render deploy hook returned unexpected status $HTTP"
+            exit 1
+          fi
+          echo "✅ Render deploy triggered successfully."
 
-      - name: Publish backend live link
+      - name: Backend summary
         run: |
-          echo "Backend: $RENDER_BACKEND_URL" >> $GITHUB_STEP_SUMMARY
+          echo "## Backend" >> $GITHUB_STEP_SUMMARY
+          echo "- Service: https://research-assistant-ghnh.onrender.com" >> $GITHUB_STEP_SUMMARY
+          echo "- Health:  https://research-assistant-ghnh.onrender.com/api/v1/health/live" >> $GITHUB_STEP_SUMMARY
+          echo "- Docs:    https://research-assistant-ghnh.onrender.com/docs" >> $GITHUB_STEP_SUMMARY
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # JOB 5 — Post-deploy smoke test
+  # Waits for both deploys to finish, then pings the backend health endpoint
+  # to confirm the service is actually responding.
+  # ───────────────────────────────────────────────────────────────────────────
+  smoke-test:
+    name: Smoke Test
+    runs-on: ubuntu-latest
+    needs: [deploy-frontend, deploy-backend]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - name: Wait for Render to wake up (free tier may cold-start)
+        run: sleep 20
+
+      - name: Check backend liveness
+        run: |
+          URL="https://research-assistant-ghnh.onrender.com/api/v1/health/live"
+          echo "GET $URL"
+          RESPONSE=$(curl -fsSL --max-time 60 --retry 4 --retry-delay 15 \
+                          --retry-connrefused "$URL")
+          echo "$RESPONSE"
+          echo "$RESPONSE" | python3 -c "
+          import sys, json
+          d = json.load(sys.stdin)
+          assert d.get('data', {}).get('alive') is True, 'alive != true'
+          db_ok = d.get('data', {}).get('db_connected', False)
+          if not db_ok:
+              print('::warning::Backend is alive but db_connected=false')
+              print('::warning::Set MONGODB_URL in Render dashboard')
+          else:
+              print('Backend alive and DB connected ✅')
+          "
+
+      - name: Smoke test summary
+        if: always()
+        run: |
+          echo "## Smoke Test" >> $GITHUB_STEP_SUMMARY
+          echo "- Backend health checked after deploy" >> $GITHUB_STEP_SUMMARY
