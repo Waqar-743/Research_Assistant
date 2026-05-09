@@ -23,24 +23,26 @@ services:
         value: "1"
 
       # ── MongoDB Atlas ────────────────────────────────────────────────
-      #    Paste your Atlas connection string in the Render dashboard
+      #    Set via GitHub secret MONGODB_URL — synced by CI deploy job.
       - key: MONGODB_URL
         sync: false
       - key: MONGODB_DATABASE
         value: research_assistant_db
 
       # ── Redis ────────────────────────────────────────────────────────
-      #    Paste your Redis URL (Render Redis / Upstash / other managed Redis)
+      #    Not used on Render free tier — Redis features are disabled.
       - key: REDIS_URL
-        sync: false
+        value: ""
       - key: CACHE_TTL
         value: "86400"
 
       # ── Sentry ───────────────────────────────────────────────────────
+      #    Set via GitHub secret SENTRY_DSN — synced by CI deploy job.
       - key: SENTRY_DSN
         sync: false
 
       # ── OpenRouter LLM ───────────────────────────────────────────────
+      #    Set via GitHub secret OPENROUTER_API_KEY — synced by CI deploy job.
       - key: OPENROUTER_API_KEY
         sync: false
       - key: OPENROUTER_BASE_URL
@@ -57,12 +59,13 @@ services:
         value: "deepseek/deepseek-chat"
 
       # ── Search APIs ──────────────────────────────────────────────────
+      #    Set via GitHub secrets SERPAPI_KEY / NEWSAPI_KEY — synced by CI.
       - key: SERPAPI_KEY
         sync: false
       - key: NEWSAPI_KEY
         sync: false
       - key: GOOGLE_API_KEY
-        sync: false
+        value: ""
       - key: GOOGLE_SEARCH_ENGINE_ID
         value: "610b6f943aada4559"
 
@@ -76,7 +79,7 @@ services:
 
       # ── Security ─────────────────────────────────────────────────────
       - key: SECRET_KEY
-        sync: false
+        value: "render-research-assistant-secret-key-2024"
       - key: ALGORITHM
         value: "HS256"
       - key: ACCESS_TOKEN_EXPIRE_MINUTES

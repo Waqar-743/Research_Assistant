@@ -165,9 +165,16 @@ jobs:
 
   # ───────────────────────────────────────────────────────────────────────────
   # JOB 4 — Deploy Backend → Render
-  # Only runs on push to main after backend CI passes.
-  # Render also has autoDeploy: true in render.yaml, so this is an optional
-  # fast-path. Add RENDER_DEPLOY_HOOK as a GitHub secret to enable it.
+  # Syncs GitHub Secrets → Render env vars via Render API, then triggers deploy.
+  #
+  # Required GitHub secrets (Settings → Secrets → Actions → New repository secret):
+  #   RENDER_API_KEY       — Render account API key (Render dashboard → Account → API Keys)
+  #   RENDER_DEPLOY_HOOK   — Render deploy hook URL (service → Settings → Deploy Hook)
+  #   MONGODB_URL          — MongoDB Atlas connection string
+  #   OPENROUTER_API_KEY   — OpenRouter API key
+  #   SERPAPI_KEY          — SerpAPI key (optional)
+  #   NEWSAPI_KEY          — NewsAPI key (optional)
+  #   SENTRY_DSN           — Sentry DSN (optional)
   # ───────────────────────────────────────────────────────────────────────────
   deploy-backend:
     name: Deploy → Render
@@ -176,21 +183,40 @@ jobs:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
 
     steps:
-      - name: Trigger Render deploy hook
+      - uses: actions/checkout@v4
+
+      - name: Sync secrets to Render env vars
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          RENDER_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+          S_MONGODB_URL: ${{ secrets.MONGODB_URL }}
+          S_OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          S_SERPAPI_KEY: ${{ secrets.SERPAPI_KEY }}
+          S_NEWSAPI_KEY: ${{ secrets.NEWSAPI_KEY }}
+          S_SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+        run: |
+          if [ -z "$RENDER_API_KEY" ] || [ -z "$RENDER_HOOK" ]; then
+            echo "RENDER_API_KEY or RENDER_DEPLOY_HOOK not set — skipping env sync."
+            exit 0
+          fi
+          export SERVICE_ID=$(echo "$RENDER_HOOK" | grep -oP '(?<=deploy/)[^?]+')
+          if [ -z "$SERVICE_ID" ]; then
+            echo "Could not parse service ID from RENDER_DEPLOY_HOOK, skipping."
+            exit 0
+          fi
+          python3 .github/scripts/sync_render_env.py
+
+      - name: Trigger Render deploy
         env:
           RENDER_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
         run: |
           if [ -z "$RENDER_HOOK" ]; then
-            echo "RENDER_DEPLOY_HOOK secret not set."
-            echo "Render will still auto-deploy via autoDeploy:true in render.yaml."
-            echo "To trigger deploys instantly, add RENDER_DEPLOY_HOOK in:"
-            echo "  GitHub -> Settings -> Secrets and variables -> Actions -> New secret"
+            echo "RENDER_DEPLOY_HOOK not set — Render will auto-deploy via autoDeploy:true."
             exit 0
           fi
           echo "Triggering Render deploy..."
           HTTP=$(curl -fsSL -o /dev/null -w "%{http_code}" "$RENDER_HOOK")
           echo "Render hook HTTP status: $HTTP"
-          # Render returns 202 Accepted for a successful deploy trigger
           if [ "$HTTP" != "200" ] && [ "$HTTP" != "201" ] && [ "$HTTP" != "202" ]; then
             echo "::error::Render deploy hook returned unexpected status $HTTP"
             exit 1
@@ -237,10 +263,9 @@ jobs:
           assert d.get('data', {}).get('alive') is True, 'alive != true'
           db_ok = d.get('data', {}).get('db_connected', False)
           if not db_ok:
-              print('::warning::Backend is alive but db_connected=false')
-              print('::warning::Set MONGODB_URL in Render dashboard')
+              print('::warning::Backend is alive but db_connected=false — check MongoDB Atlas credentials in render.yaml')
           else:
-              print('Backend alive and DB connected ✅')
+              print('Backend alive and DB connected')
           "
 
       - name: Smoke test summary
