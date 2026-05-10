@@ -14,10 +14,11 @@ from app.utils.logging import logger
 
 class MongoDB:
     """MongoDB connection manager with GridFS support."""
-    
+
     client: Optional[AsyncIOMotorClient] = None
     database: Optional[AsyncIOMotorDatabase] = None
-    fs: Optional[AsyncIOMotorGridFSBucket] = None  # GridFS for file storage
+    fs: Optional[AsyncIOMotorGridFSBucket] = None
+    connect_error: Optional[str] = None  # last startup error, exposed via health
 
 
 db = MongoDB()
@@ -84,12 +85,13 @@ async def connect_to_mongo():
         logger.info(f"Connected to MongoDB database: {settings.mongodb_database}")
         
     except Exception as e:
-        logger.error(f"Failed to connect to MongoDB: {e}", exc_info=True)
+        err = f"[{type(e).__name__}] {e}"
+        logger.error(f"Failed to connect to MongoDB: {err}", exc_info=True)
         logger.warning("Running in degraded mode — all database operations will return 503")
-        # Reset everything so db.database is None → callers get a clean 503
         db.client = None
         db.database = None
         db.fs = None
+        db.connect_error = err
 
 
 async def close_mongo_connection():

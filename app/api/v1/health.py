@@ -88,15 +88,14 @@ async def liveness_check():
     frontend can show a meaningful status without a separate call.
     """
     db_connected = _mongo_db.database is not None
-    return APIResponse(
-        status=200,
-        message="Service is alive",
-        data={
-            "alive": True,
-            "db_connected": db_connected,
-            "timestamp": datetime.utcnow().isoformat(),
-        },
-    )
+    data: dict = {
+        "alive": True,
+        "db_connected": db_connected,
+        "timestamp": datetime.utcnow().isoformat(),
+    }
+    if not db_connected and _mongo_db.connect_error:
+        data["db_error"] = _mongo_db.connect_error
+    return APIResponse(status=200, message="Service is alive", data=data)
 
 
 @router.get("/info", response_model=APIResponse)
