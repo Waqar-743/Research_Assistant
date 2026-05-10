@@ -103,9 +103,9 @@ const SceneBG = () => (
   <div className="fixed inset-0 overflow-hidden pointer-events-none" style={{ zIndex: 0 }}>
     <div className="absolute inset-0 bg-[#030305]" />
     <div className="absolute -top-[35%] -left-[15%] w-[75%] h-[75%] rounded-full"
-      style={{ background: 'radial-gradient(circle, rgba(99,66,245,0.18) 0%, transparent 70%)' }} />
+      style={{ background: 'radial-gradient(circle, rgba(20,184,166,0.18) 0%, transparent 70%)' }} />
     <div className="absolute top-[30%] -right-[20%] w-[65%] h-[65%] rounded-full"
-      style={{ background: 'radial-gradient(circle, rgba(139,92,246,0.12) 0%, transparent 70%)' }} />
+      style={{ background: 'radial-gradient(circle, rgba(13,148,136,0.12) 0%, transparent 70%)' }} />
     <div className="absolute bottom-[-10%] left-[15%] w-[55%] h-[45%] rounded-full"
       style={{ background: 'radial-gradient(circle, rgba(16,185,129,0.07) 0%, transparent 70%)' }} />
     <div className="absolute inset-0 opacity-[0.025]"
@@ -136,7 +136,7 @@ const PillButton = ({
   const base = 'group inline-flex items-center gap-2.5 rounded-full font-semibold text-sm transition-all active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed';
   const variants = { primary: 'text-white px-6 py-2.5', ghost: 'text-white/70 hover:text-white px-5 py-2.5' };
   const variantStyles = {
-    primary: { background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)', boxShadow: '0 0 32px rgba(99,102,241,0.4), inset 0 1px 0 rgba(255,255,255,0.15)' },
+    primary: { background: 'linear-gradient(135deg, #14b8a6 0%, #0f766e 100%)', boxShadow: '0 0 32px rgba(20,184,166,0.4), inset 0 1px 0 rgba(255,255,255,0.15)' },
     ghost: { background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' },
   };
   return (
@@ -148,8 +148,8 @@ const PillButton = ({
 };
 
 const Eyebrow = ({ children }: { children: React.ReactNode }) => (
-  <span className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[10px] uppercase tracking-[0.22em] font-bold text-indigo-200"
-    style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.2) 0%, rgba(139,92,246,0.15) 100%)', border: '1px solid rgba(139,92,246,0.35)', boxShadow: '0 0 20px rgba(99,102,241,0.15)' }}>
+  <span className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[10px] uppercase tracking-[0.22em] font-bold text-teal-200"
+    style={{ background: 'linear-gradient(135deg, rgba(20,184,166,0.2) 0%, rgba(13,148,136,0.15) 100%)', border: '1px solid rgba(13,148,136,0.35)', boxShadow: '0 0 20px rgba(20,184,166,0.15)' }}>
     {children}
   </span>
 );
@@ -157,7 +157,7 @@ const Eyebrow = ({ children }: { children: React.ReactNode }) => (
 const FeatureChip = ({ icon: Icon, label }: { icon: React.ElementType; label: string }) => (
   <div className="flex items-center gap-2 px-4 py-2 rounded-full text-white/60 text-xs font-medium"
     style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', backdropFilter: 'blur(8px)' }}>
-    <Icon size={12} strokeWidth={1.5} className="text-indigo-400" />
+    <Icon size={12} strokeWidth={1.5} className="text-teal-400" />
     <span>{label}</span>
   </div>
 );
@@ -230,7 +230,7 @@ const AboutPage = ({ onStart }: { onStart: () => void }) => {
     { icon: Download, title: 'Export Options', desc: 'Download as Markdown or HTML for further editing.' },
   ];
   const colorMap: Record<string, string> = {
-    indigo: 'border-indigo-500/25 bg-indigo-500/[0.07] text-indigo-400',
+    indigo: 'border-teal-500/25 bg-teal-500/[0.07] text-teal-400',
     sky: 'border-sky-500/25 bg-sky-500/[0.07] text-sky-400',
     amber: 'border-amber-500/25 bg-amber-500/[0.07] text-amber-400',
     emerald: 'border-emerald-500/25 bg-emerald-500/[0.07] text-emerald-400',
@@ -283,7 +283,7 @@ const AboutPage = ({ onStart }: { onStart: () => void }) => {
             return (
               <BezelCard key={f.title} innerClassName="p-5 h-full">
                 <div className="flex items-start gap-3">
-                  <div className="p-2 rounded-lg border border-white/[0.07] bg-white/[0.03] text-indigo-400 shrink-0 mt-0.5"><Icon size={15} strokeWidth={1.5} /></div>
+                  <div className="p-2 rounded-lg border border-white/[0.07] bg-white/[0.03] text-teal-400 shrink-0 mt-0.5"><Icon size={15} strokeWidth={1.5} /></div>
                   <div>
                     <h4 className="font-semibold text-sm text-white mb-1" style={{ fontFamily: 'var(--font-display)' }}>{f.title}</h4>
                     <p className="text-xs text-white/40 leading-relaxed">{f.desc}</p>
@@ -344,7 +344,7 @@ const ReportPage = ({
 
   const exportHTML = () => {
     const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>${report.title}</title>
-<style>body{font-family:system-ui,sans-serif;max-width:800px;margin:0 auto;padding:2rem;color:#1e293b}h1,h2{color:#4f46e5}a{color:#4f46e5}</style></head><body>
+<style>body{font-family:system-ui,sans-serif;max-width:800px;margin:0 auto;padding:2rem;color:#1e293b}h1,h2{color:#0d9488}a{color:#0d9488}</style></head><body>
 <h1>${report.title}</h1><h2>Executive Summary</h2><p>${report.executiveSummary}</p>
 ${(report.sections ?? []).map((s) => `<h2>${s.heading}</h2><p>${s.content}</p>`).join('')}
 ${report.sources?.length ? `<h2>Sources</h2><ol>${report.sources.map((s) => `<li><a href="${s.url}">${s.title}</a></li>`).join('')}</ol>` : ''}
@@ -421,7 +421,7 @@ ${report.sources?.length ? `<h2>Sources</h2><ol>${report.sources.map((s) => `<li
               <nav className="space-y-0.5">
                 {['Executive Summary', ...report.tableOfContents].map((item, i) => (
                   <button key={i} onClick={() => scrollToSection(i)}
-                    className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs transition-colors leading-tight ${activeToc === i ? 'bg-indigo-500/15 text-indigo-300 font-semibold' : 'text-white/35 hover:text-white/70 hover:bg-white/[0.04]'}`}>
+                    className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs transition-colors leading-tight ${activeToc === i ? 'bg-teal-500/15 text-teal-300 font-semibold' : 'text-white/35 hover:text-white/70 hover:bg-white/[0.04]'}`}>
                     {item}
                   </button>
                 ))}
@@ -440,7 +440,7 @@ ${report.sources?.length ? `<h2>Sources</h2><ol>${report.sources.map((s) => `<li
                   className={`relative px-5 py-4 text-xs font-semibold transition-colors whitespace-nowrap ${tab === t ? 'text-white' : 'text-white/35 hover:text-white/60'}`}
                   style={{ fontFamily: 'var(--font-display)' }}>
                   {t}{t === 'Sources' && report.sources ? ` (${report.sources.length})` : ''}{t === 'Findings' && report.findings ? ` (${report.findings.length})` : ''}
-                  {tab === t && <motion.div layoutId="report-tab" className="absolute bottom-0 left-4 right-4 h-px bg-indigo-400" transition={{ duration: 0.25 }} />}
+                  {tab === t && <motion.div layoutId="report-tab" className="absolute bottom-0 left-4 right-4 h-px bg-teal-400" transition={{ duration: 0.25 }} />}
                 </button>
               ))}
             </div>
@@ -453,13 +453,13 @@ ${report.sources?.length ? `<h2>Sources</h2><ol>${report.sources.map((s) => `<li
                 {tab === 'Report' && (
                   <>
                     {report.tableOfContents && report.tableOfContents.length > 0 && (
-                      <section className="mb-10 p-5 bg-indigo-50 rounded-2xl border border-indigo-100"
+                      <section className="mb-10 p-5 bg-teal-50 rounded-2xl border border-teal-100"
                         ref={(el) => { sectionRefs.current[0] = el; }}>
-                        <p className="text-[10px] uppercase tracking-[0.2em] font-bold text-indigo-500 mb-3">Table of Contents</p>
+                        <p className="text-[10px] uppercase tracking-[0.2em] font-bold text-teal-500 mb-3">Table of Contents</p>
                         <ul className="space-y-2 list-none p-0 m-0">
                           {report.tableOfContents.map((item, i) => (
-                            <li key={i} className="flex items-center gap-2.5 text-sm text-indigo-700 font-medium">
-                              <span className="text-[10px] font-bold text-indigo-300 tabular-nums w-5 shrink-0">{String(i + 1).padStart(2, '0')}</span>
+                            <li key={i} className="flex items-center gap-2.5 text-sm text-teal-700 font-medium">
+                              <span className="text-[10px] font-bold text-teal-300 tabular-nums w-5 shrink-0">{String(i + 1).padStart(2, '0')}</span>
                               {item}
                             </li>
                           ))}
@@ -528,7 +528,7 @@ ${report.sources?.length ? `<h2>Sources</h2><ol>${report.sources.map((s) => `<li
                     {report.sources && report.sources.length > 0 ? (
                       <div className="grid gap-3">
                         {report.sources.map((source, i) => (
-                          <div key={i} className="p-4 bg-slate-50 rounded-xl border border-slate-100 hover:border-indigo-200 transition-colors">
+                          <div key={i} className="p-4 bg-slate-50 rounded-xl border border-slate-100 hover:border-teal-200 transition-colors">
                             <div className="flex items-start justify-between gap-4">
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 flex-wrap mb-1">
@@ -539,13 +539,13 @@ ${report.sources?.length ? `<h2>Sources</h2><ol>${report.sources.map((s) => `<li
                                     </span>
                                   )}
                                   {source.apiSource && (
-                                    <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700">{source.apiSource}</span>
+                                    <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-teal-100 text-teal-700">{source.apiSource}</span>
                                   )}
                                 </div>
                                 {source.author && <p className="text-xs text-slate-500 mb-1">By {source.author}</p>}
                                 {source.url && (
                                   <a href={source.url} target="_blank" rel="noreferrer"
-                                    className="text-xs text-indigo-600 hover:text-indigo-800 hover:underline break-all flex items-center gap-1">
+                                    className="text-xs text-teal-600 hover:text-teal-800 hover:underline break-all flex items-center gap-1">
                                     <ExternalLink size={11} strokeWidth={1.5} className="shrink-0" />{source.url}
                                   </a>
                                 )}
@@ -751,11 +751,11 @@ export default function App() {
           style={{ background: 'rgba(11,11,20,0.85)', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 8px 40px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.06)' }}>
           {/* Logo */}
           <button className="flex items-center gap-2.5" onClick={() => setView('landing')}>
-            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-[0_0_12px_rgba(99,102,241,0.5)]">
+            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-teal-500 to-teal-700 flex items-center justify-center shadow-[0_0_12px_rgba(20,184,166,0.5)]">
               <Sparkles size={14} strokeWidth={2} className="text-white" />
             </div>
             <span className="text-sm font-bold tracking-tight" style={{ fontFamily: 'var(--font-display)' }}>
-              Research<span className="text-indigo-400">AI</span>
+              Research<span className="text-teal-400">AI</span>
             </span>
           </button>
 
@@ -770,7 +770,7 @@ export default function App() {
                   if (label === 'History') fetchHistory();
                   setView(targetView);
                 }}
-                  className={`px-3.5 py-1.5 rounded-full text-sm font-medium transition-all duration-300 ${isActive ? 'bg-white/[0.09] text-white' : 'text-white/45 hover:text-white/80'} ${label === 'Report' ? 'border border-indigo-500/30 text-indigo-300' : ''}`}>
+                  className={`px-3.5 py-1.5 rounded-full text-sm font-medium transition-all duration-300 ${isActive ? 'bg-white/[0.09] text-white' : 'text-white/45 hover:text-white/80'} ${label === 'Report' ? 'border border-teal-500/30 text-teal-300' : ''}`}>
                   {label}
                 </button>
               );
@@ -837,7 +837,7 @@ export default function App() {
                 Research at the{' '}
                 <br className="hidden sm:block" />
                 <span style={{
-                  background: 'linear-gradient(135deg, #818cf8 0%, #a78bfa 40%, #c084fc 70%, #e879f9 100%)',
+                  background: 'linear-gradient(135deg, #2dd4bf 0%, #14b8a6 40%, #10b981 70%, #059669 100%)',
                   WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
                 }}>
                   speed of intelligence
@@ -878,7 +878,7 @@ export default function App() {
             <BezelCard>
               <div className="p-6 md:p-8">
                 <div className="relative mb-5">
-                  <div className="p-px rounded-2xl" style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.25) 0%, rgba(139,92,246,0.1) 50%, rgba(255,255,255,0.06) 100%)' }}>
+                  <div className="p-px rounded-2xl" style={{ background: 'linear-gradient(135deg, rgba(20,184,166,0.25) 0%, rgba(13,148,136,0.1) 50%, rgba(255,255,255,0.06) 100%)' }}>
                     <textarea
                       value={options.query}
                       onChange={(e) => setOptions({ ...options, query: e.target.value })}
@@ -915,7 +915,7 @@ export default function App() {
                           <div>
                             <label className="text-[10px] uppercase tracking-[0.18em] font-semibold text-white/30 mb-2 block">Focus Areas</label>
                             <input type="text" value={options.focusAreas} onChange={(e) => setOptions({ ...options, focusAreas: e.target.value })}
-                              className="w-full bg-[#07070e] border border-white/[0.07] rounded-full px-4 py-2.5 text-sm text-white/80 focus:outline-none focus:border-indigo-500/40 transition-colors" />
+                              className="w-full bg-[#07070e] border border-white/[0.07] rounded-full px-4 py-2.5 text-sm text-white/80 focus:outline-none focus:border-teal-500/40 transition-colors" />
                           </div>
                           <div className="grid grid-cols-2 gap-3">
                             {[{ label: 'Report Format', key: 'format' as const, opts: ['Markdown', 'PDF', 'HTML'] },
@@ -924,7 +924,7 @@ export default function App() {
                               <div key={key}>
                                 <label className="text-[10px] uppercase tracking-[0.18em] font-semibold text-white/30 mb-2 block">{label}</label>
                                 <select value={options[key]} onChange={(e) => setOptions({ ...options, [key]: e.target.value })}
-                                  className="w-full bg-[#07070e] border border-white/[0.07] rounded-full px-4 py-2.5 text-sm text-white/80 appearance-none focus:outline-none focus:border-indigo-500/40 cursor-pointer">
+                                  className="w-full bg-[#07070e] border border-white/[0.07] rounded-full px-4 py-2.5 text-sm text-white/80 appearance-none focus:outline-none focus:border-teal-500/40 cursor-pointer">
                                   {opts.map((o) => <option key={o} value={o}>{o}</option>)}
                                 </select>
                               </div>
@@ -936,8 +936,8 @@ export default function App() {
                             <label className="text-[10px] uppercase tracking-[0.18em] font-semibold text-white/30 mb-2 block">Source Preferences</label>
                             <div className="bg-[#07070e] border border-white/[0.07] rounded-2xl p-3 flex flex-wrap gap-2">
                               {options.sources.map((s) => (
-                                <span key={s} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/25 text-indigo-300 text-[10px] font-semibold uppercase tracking-wider">
-                                  <span className="w-1 h-1 rounded-full bg-indigo-400" />{s}
+                                <span key={s} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-teal-500/10 border border-teal-500/25 text-teal-300 text-[10px] font-semibold uppercase tracking-wider">
+                                  <span className="w-1 h-1 rounded-full bg-teal-400" />{s}
                                 </span>
                               ))}
                             </div>
@@ -946,12 +946,12 @@ export default function App() {
                             <div>
                               <label className="text-[10px] uppercase tracking-[0.18em] font-semibold text-white/30 mb-2 block">Max Sources</label>
                               <input type="number" value={options.maxSources} onChange={(e) => setOptions({ ...options, maxSources: parseInt(e.target.value) || 50 })}
-                                className="w-full bg-[#07070e] border border-white/[0.07] rounded-full px-4 py-2.5 text-sm text-white/80 focus:outline-none focus:border-indigo-500/40" />
+                                className="w-full bg-[#07070e] border border-white/[0.07] rounded-full px-4 py-2.5 text-sm text-white/80 focus:outline-none focus:border-teal-500/40" />
                             </div>
                             <div>
                               <label className="text-[10px] uppercase tracking-[0.18em] font-semibold text-white/30 mb-2 block">Mode</label>
                               <select value={options.mode} onChange={(e) => setOptions({ ...options, mode: e.target.value })}
-                                className="w-full bg-[#07070e] border border-white/[0.07] rounded-full px-4 py-2.5 text-sm text-white/80 appearance-none focus:outline-none focus:border-indigo-500/40 cursor-pointer">
+                                className="w-full bg-[#07070e] border border-white/[0.07] rounded-full px-4 py-2.5 text-sm text-white/80 appearance-none focus:outline-none focus:border-teal-500/40 cursor-pointer">
                                 {['Automatic', 'Manual', 'Deep Research'].map((o) => <option key={o} value={o}>{o}</option>)}
                               </select>
                             </div>
@@ -1009,12 +1009,12 @@ export default function App() {
                 </h2>
                 <p className="text-sm text-white/35 mt-1 max-w-lg truncate">{currentQuery || options.query}</p>
               </div>
-              <span className="text-3xl font-extrabold tabular-nums text-indigo-400" style={{ fontFamily: 'var(--font-display)' }}>{progress}%</span>
+              <span className="text-3xl font-extrabold tabular-nums text-teal-400" style={{ fontFamily: 'var(--font-display)' }}>{progress}%</span>
             </div>
 
             {/* Progress bar */}
             <div className="h-1.5 bg-white/[0.06] rounded-full overflow-hidden">
-              <motion.div className="h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-violet-500 relative"
+              <motion.div className="h-full bg-gradient-to-r from-teal-400 via-teal-500 to-teal-600 relative"
                 initial={{ width: 0 }} animate={{ width: `${progress}%` }} transition={{ duration: 0.8, ease: EASE_OUT }}>
                 <motion.div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent"
                   animate={{ x: ['-100%', '200%'] }} transition={{ repeat: Infinity, duration: 1.8, ease: 'linear' }} />
@@ -1029,7 +1029,7 @@ export default function App() {
               </div>
               <div className="flex items-start justify-between relative px-2">
                 <div className="absolute top-[26px] left-[48px] right-[48px] h-px bg-white/[0.06]" />
-                <motion.div className="absolute top-[26px] left-[48px] h-px bg-gradient-to-r from-indigo-500 to-emerald-500" style={{ originX: 0 }} initial={{ width: 0 }}
+                <motion.div className="absolute top-[26px] left-[48px] h-px bg-gradient-to-r from-teal-500 to-emerald-500" style={{ originX: 0 }} initial={{ width: 0 }}
                   animate={{ width: (() => { const c = agents.filter((a) => a.status === AgentStatus.COMPLETED).length; const ip = agents.findIndex((a) => a.status === AgentStatus.IN_PROGRESS); const s = ip >= 0 ? ip : c; return `${(s / Math.max(agents.length - 1, 1)) * (100 - 80 / agents.length)}%`; })() }}
                   transition={{ duration: 0.8, ease: EASE_OUT }} />
                 {agents.map((agent) => (
@@ -1044,7 +1044,7 @@ export default function App() {
             <BezelCard innerClassName="overflow-hidden">
               <div className="px-5 py-3.5 border-b border-white/[0.06] flex items-center justify-between bg-white/[0.02]">
                 <div className="flex items-center gap-2.5">
-                  <Terminal size={14} strokeWidth={1.5} className="text-indigo-400" />
+                  <Terminal size={14} strokeWidth={1.5} className="text-teal-400" />
                   <span className="text-xs font-semibold text-white/60" style={{ fontFamily: 'var(--font-display)' }}>Live Activity</span>
                 </div>
                 <button onClick={() => setLogs([])} className="text-[10px] uppercase tracking-widest font-bold px-3 py-1 bg-white/[0.04] hover:bg-white/[0.08] rounded-full transition-colors text-white/30 hover:text-white/60">Clear</button>
@@ -1105,7 +1105,7 @@ export default function App() {
               </div>
               <div className="flex items-center gap-2">
                 <button onClick={fetchHistory} className="p-2 rounded-full bg-white/[0.05] hover:bg-white/[0.09] transition-colors" title="Refresh">
-                  <RefreshCw size={14} strokeWidth={1.5} className={historyLoading ? 'animate-spin text-indigo-400' : 'text-white/40'} />
+                  <RefreshCw size={14} strokeWidth={1.5} className={historyLoading ? 'animate-spin text-teal-400' : 'text-white/40'} />
                 </button>
                 <PillButton variant="ghost" onClick={() => setView('landing')}>
                   <Plus size={14} strokeWidth={2} /> New Research
@@ -1116,7 +1116,7 @@ export default function App() {
             {/* Loading state */}
             {historyLoading && (
               <BezelCard innerClassName="py-16 text-center">
-                <Loader2 size={28} strokeWidth={1.5} className="mx-auto mb-3 animate-spin text-indigo-400" />
+                <Loader2 size={28} strokeWidth={1.5} className="mx-auto mb-3 animate-spin text-teal-400" />
                 <p className="text-white/35 text-sm">Loading history…</p>
               </BezelCard>
             )}
@@ -1138,7 +1138,7 @@ export default function App() {
               <BezelCard innerClassName="py-20 text-center">
                 <History size={40} strokeWidth={1} className="mx-auto mb-4 text-white/15" />
                 <p className="text-white/30 text-lg font-medium" style={{ fontFamily: 'var(--font-display)' }}>No research history yet</p>
-                <button onClick={() => setView('landing')} className="mt-4 text-indigo-400 text-sm font-semibold hover:text-indigo-300 transition-colors">
+                <button onClick={() => setView('landing')} className="mt-4 text-teal-400 text-sm font-semibold hover:text-teal-300 transition-colors">
                   Start your first research →
                 </button>
               </BezelCard>
@@ -1151,7 +1151,7 @@ export default function App() {
                   <motion.div key={item.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: i * 0.04, duration: 0.3 }}>
                     <div
-                      className="border border-white/[0.07] rounded-2xl hover:border-indigo-500/30 transition-all duration-400 cursor-pointer group bg-[#0a0a12]"
+                      className="border border-white/[0.07] rounded-2xl hover:border-teal-500/30 transition-all duration-400 cursor-pointer group bg-[#0a0a12]"
                       onClick={async () => {
                         try {
                           const res = await researchService.getResearchResults(item.id);
@@ -1184,8 +1184,8 @@ export default function App() {
                           <span className={`text-[10px] font-bold uppercase tracking-wider ${item.status === 'completed' ? 'text-emerald-400' : item.status === 'failed' ? 'text-rose-400' : 'text-amber-400'}`}>
                             {item.status}
                           </span>
-                          <div className="w-7 h-7 rounded-full bg-white/[0.04] group-hover:bg-indigo-500/15 flex items-center justify-center transition-colors duration-300">
-                            <ArrowUpRight size={13} strokeWidth={1.5} className="text-white/30 group-hover:text-indigo-400 transition-colors" />
+                          <div className="w-7 h-7 rounded-full bg-white/[0.04] group-hover:bg-teal-500/15 flex items-center justify-center transition-colors duration-300">
+                            <ArrowUpRight size={13} strokeWidth={1.5} className="text-white/30 group-hover:text-teal-400 transition-colors" />
                           </div>
                         </div>
                       </div>
