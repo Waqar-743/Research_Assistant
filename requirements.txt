@@ -14,10 +14,11 @@ openai>=1.30.0
 langchain>=0.1.0
 langchain-openai>=0.0.5
 
-# Database (MongoDB)
-motor>=3.3.2
-pymongo>=4.6.0
-beanie>=1.25.0
+# Database (MongoDB) — pinned to avoid Motor/Beanie version mismatch
+# Beanie 1.26+ calls motor_client.append_metadata() which Motor 3.3 doesn't expose.
+motor==3.3.2
+pymongo==4.6.1
+beanie==1.25.0
 
 # HTTP Client
 httpx>=0.28.0
